@@ -1,0 +1,36 @@
+// Public site: plain Bootstrap 5 with a few brand tweaks.
+$primary: #e8590c;
+$font-family-sans-serif: 'Noto Sans Georgian', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+@import 'bootstrap/scss/bootstrap';
+@import 'bootstrap-icons/font/bootstrap-icons.css';
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1 0 auto;
+}
+
+.hero {
+    background: linear-gradient(135deg, #212529 0%, #343a40 60%, $primary 160%);
+    color: #fff;
+}
+
+.auth-card {
+    max-width: 460px;
+}
+
+.price-table td,
+.price-table th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.legal h2 {
+    font-size: 1.25rem;
+    margin-top: 2rem;
+}

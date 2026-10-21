@@ -1,0 +1,10 @@
+# Apache's DocumentRoot is the project root (/var/www/html), so send every
+# request into public/. Nothing outside public/ (.env, vendor, storage...) is reachable.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
