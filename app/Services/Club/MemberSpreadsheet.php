@@ -27,6 +27,9 @@ class MemberSpreadsheet
         'phone' => 'Phone',
         'email' => 'Email',
         'birth_date' => 'Date of birth',
+        'gender' => 'Gender',
+        'emergency_contact_name' => 'Emergency contact',
+        'emergency_contact_phone' => 'Emergency contact phone',
         'joined_on' => 'Member since',
         'comment' => 'Comment',
     ];
@@ -40,6 +43,9 @@ class MemberSpreadsheet
         'phone' => ['phone', 'phone number', 'mobile', 'telephone', 'tel', 'ტელეფონი', 'ტელ', 'მობილური', 'ტელეფონის ნომერი'],
         'email' => ['email', 'e mail', 'mail', 'ელფოსტა', 'ელ ფოსტა', 'ელ-ფოსტა'],
         'birth_date' => ['date of birth', 'birth date', 'birthday', 'dob', 'დაბადების თარიღი', 'დაბადების დღე'],
+        'gender' => ['gender', 'sex', 'სქესი'],
+        'emergency_contact_name' => ['emergency contact', 'emergency contact name', 'in case of emergency', 'ice', 'საკონტაქტო პირი', 'საგანგებო კონტაქტი'],
+        'emergency_contact_phone' => ['emergency contact phone', 'emergency phone', 'ice phone', 'საკონტაქტო პირის ტელეფონი', 'საგანგებო ტელეფონი'],
         'joined_on' => ['member since', 'joined', 'joined on', 'join date', 'გაწევრიანების თარიღი', 'გაწევრიანდა'],
         'comment' => ['comment', 'comments', 'note', 'notes', 'კომენტარი', 'შენიშვნა'],
     ];
@@ -95,8 +101,8 @@ class MemberSpreadsheet
     {
         $path = tempnam(sys_get_temp_dir(), 'members').'.xlsx';
         $writer = new Writer;
-        $writer->getOptions()->setColumnWidth(18, 1, 2, 3, 4, 6, 7);
-        $writer->getOptions()->setColumnWidth(28, 5, 8);
+        $writer->getOptions()->setColumnWidth(18, 1, 2, 3, 4, 6, 7, 9, 10);
+        $writer->getOptions()->setColumnWidth(28, 5, 8, 11);
         $writer->openToFile($path);
 
         $headers = array_map(fn ($label) => __($label), array_values(self::COLUMNS));
@@ -115,6 +121,9 @@ class MemberSpreadsheet
                 Cell::fromValue((string) $member->phone),
                 Cell::fromValue((string) $member->email),
                 Cell::fromValue($member->birth_date?->toDateTimeImmutable(), $date),
+                Cell::fromValue($member->gender ? __(ClubMember::GENDERS[$member->gender] ?? $member->gender) : ''),
+                Cell::fromValue((string) $member->emergency_contact_name),
+                Cell::fromValue((string) $member->emergency_contact_phone),
                 Cell::fromValue($member->joined_on?->toDateTimeImmutable(), $date),
                 Cell::fromValue((string) $member->comment),
             ];
@@ -187,7 +196,8 @@ class MemberSpreadsheet
             $row[$field] = match ($field) {
                 'birth_date', 'joined_on' => $this->toDate($value),
                 'personal_id' => $this->toDigits($value, 11),
-                'phone' => $this->toDigits($value),
+                'phone', 'emergency_contact_phone' => $this->toDigits($value),
+                'gender' => $this->toGender($value),
                 default => $this->toText($value),
             };
         }
@@ -226,6 +236,23 @@ class MemberSpreadsheet
         }
         if (is_int($value) || is_float($value)) {
             return $length ? str_pad($text, $length, '0', STR_PAD_LEFT) : $text;
+        }
+
+        return $text;
+    }
+
+    /** "Female", "F", "ქალი" (or the translated label) → female; unknown values are left for validation to report. */
+    private function toGender(mixed $value): ?string
+    {
+        $text = $this->toText($value);
+        if ($text === null) {
+            return null;
+        }
+        $aliases = ['female' => ['female', 'f', 'woman', 'ქალი', 'მდედრობითი'], 'male' => ['male', 'm', 'man', 'კაცი', 'მამაკაცი', 'მამრობითი']];
+        foreach ($aliases as $gender => $words) {
+            if (in_array(mb_strtolower($text), [...$words, mb_strtolower(__(ClubMember::GENDERS[$gender]))], true)) {
+                return $gender;
+            }
         }
 
         return $text;

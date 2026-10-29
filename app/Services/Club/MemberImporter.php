@@ -3,7 +3,6 @@
 namespace App\Services\Club;
 
 use App\Http\Requests\ClubMemberRequest;
-use App\Http\Requests\VisitorRequest;
 use App\Models\ActivityLog;
 use App\Models\ClubMember;
 use App\Models\User;
@@ -39,7 +38,7 @@ class MemberImporter
 
         $result = [];
         foreach ($rows as $line => $data) {
-            $data = VisitorRequest::normalize($data);
+            $data = ClubMemberRequest::normalize($data);
             $data = array_map(fn ($value) => $value === '' ? null : $value, $data);
             $item = ['line' => $line, 'data' => $data, 'status' => self::NEW, 'errors' => [], 'match' => null];
 

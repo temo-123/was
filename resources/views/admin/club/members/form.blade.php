@@ -40,6 +40,14 @@
         </div>
     @endif
 
+    @if ($member->exists && ($missing = $member->missingProfileFields()))
+        <div class="alert alert-warning">
+            <i class="bi bi-person-vcard"></i>
+            {{ __('Incomplete card — the member will be asked for the missing details at their next check-in:') }}
+            {{ collect($missing)->map(fn ($field) => __(\App\Services\Club\MemberSpreadsheet::COLUMNS[$field]))->implode(', ') }}
+        </div>
+    @endif
+
     <form method="POST" action="{{ $member->exists ? route('admin.club.members.update', $member) : route('admin.club.members.store') }}" class="card" novalidate data-validate>
         @csrf
         @if ($member->exists) @method('PUT') @endif
@@ -54,6 +62,9 @@
                         ['phone', __('Phone'), 'tel', false, 'inputmode="numeric" maxlength="15" pattern="\\d{9,15}" data-digits="15" placeholder="599123456" data-error="'.e(__('Digits only, 9–15.')).'"', __('digits only')],
                         ['email', __('Email'), 'email', false, 'maxlength="255" pattern="[^\\s@]+@[^\\s@]+\\.[A-Za-z]{2,}" placeholder="name@gmail.com" data-error="'.e(__('Enter a real email, e.g. name@gmail.com.')).'"', __('optional')],
                         ['birth_date', __('Date of birth'), 'date', false, 'min="1900-01-01" max="'.now()->subDay()->toDateString().'" data-error="'.e(__('Enter a date in the past.')).'"', __('optional')],
+                        ['gender', __('Gender'), 'select', false, '', __('optional')],
+                        ['emergency_contact_name', __('Emergency contact'), 'text', false, 'minlength="2" maxlength="150" pattern="[\\p{L}][\\p{L}\\s\'\\-]*" data-error="'.e(__('Letters only, at least 2.')).'"', __('optional')],
+                        ['emergency_contact_phone', __('Emergency contact phone'), 'tel', false, 'inputmode="numeric" maxlength="15" pattern="\\d{9,15}" data-digits="15" placeholder="599123456" data-error="'.e(__('Digits only, 9–15.')).'"', __('optional')],
                         ['joined_on', __('Member since'), 'date', false, 'min="1900-01-01"', __('optional')],
                     ];
                 @endphp
@@ -63,9 +74,18 @@
                             {{ $label }} @if ($required)<span class="text-danger">*</span>@endif
                             @if ($hint)<small class="text-body-secondary">({{ $hint }})</small>@endif
                         </label>
-                        <input id="{{ $field }}" name="{{ $field }}" type="{{ $type }}" @required($required) {!! $attributes !!} autocomplete="off"
-                               value="{{ old($field, in_array($field, ['birth_date', 'joined_on']) ? $member->{$field}?->toDateString() : $member->{$field}) }}"
-                               @class(['form-control', 'font-monospace' => in_array($field, ['personal_id', 'phone']), 'is-invalid' => $errors->has($field)])>
+                        @if ($type === 'select')
+                            <select id="{{ $field }}" name="{{ $field }}" @class(['form-select', 'is-invalid' => $errors->has($field)])>
+                                <option value="">—</option>
+                                @foreach (\App\Models\ClubMember::GENDERS as $value => $text)
+                                    <option value="{{ $value }}" @selected(old($field, $member->{$field}) === $value)>{{ __($text) }}</option>
+                                @endforeach
+                            </select>
+                        @else
+                            <input id="{{ $field }}" name="{{ $field }}" type="{{ $type }}" @required($required) {!! $attributes !!} autocomplete="off"
+                                   value="{{ old($field, in_array($field, ['birth_date', 'joined_on']) ? $member->{$field}?->toDateString() : $member->{$field}) }}"
+                                   @class(['form-control', 'font-monospace' => in_array($field, ['personal_id', 'phone', 'emergency_contact_phone']), 'is-invalid' => $errors->has($field)])>
+                        @endif
                         <div class="invalid-feedback">{{ $errors->first($field) }}</div>
                     </div>
                 @endforeach

@@ -11,12 +11,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'first_name', 'last_name', 'personal_id', 'phone', 'email', 'birth_date', 'joined_on', 'comment',
-    'is_active', 'is_pending', 'created_by',
+    'first_name', 'last_name', 'personal_id', 'phone', 'email', 'birth_date', 'gender',
+    'emergency_contact_name', 'emergency_contact_phone', 'joined_on', 'comment', 'is_active', 'is_pending', 'created_by',
 ])]
 class ClubMember extends Model
 {
     use HasFactory;
+
+    public const GENDERS = ['female' => 'Female', 'male' => 'Male'];
+
+    /** Everything a member card must have: asked at self-registration, and after check-in when something is missing. */
+    public const PROFILE_FIELDS = [
+        'first_name', 'last_name', 'personal_id', 'birth_date', 'gender', 'phone', 'email',
+        'emergency_contact_name', 'emergency_contact_phone',
+    ];
 
     protected function casts(): array
     {
@@ -33,6 +41,12 @@ class ClubMember extends Model
         return Attribute::get(fn () => trim($this->first_name.' '.$this->last_name));
     }
 
+    /** @return list<string> PROFILE_FIELDS that are still empty */
+    public function missingProfileFields(): array
+    {
+        return array_values(array_filter(self::PROFILE_FIELDS, fn (string $field) => blank($this->{$field})));
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -43,25 +57,20 @@ class ClubMember extends Model
         return $this->hasMany(ClubAttendance::class);
     }
 
-    /** Last digits of the phone, to tell apart members with the same name on the check-in page. */
-    protected function phoneHint(): Attribute
-    {
-        return Attribute::get(fn () => $this->phone ? '•••'.substr($this->phone, -3) : null);
-    }
-
-    /** Members whose name starts with what was typed on the check-in page (in either order). */
+    /** Exactly this first and last name, in either order (the collation ignores upper/lower case). */
     public function scopeNameMatch(Builder $query, string $firstName, string $lastName): Builder
     {
-        $like = fn (string $text) => str_replace(['%', '_'], ['\%', '\_'], trim($text)).'%';
+        [$firstName, $lastName] = [trim($firstName), trim($lastName)];
 
         return $query->where(fn (Builder $q) => $q
-            ->where(fn (Builder $w) => $w->where('first_name', 'like', $like($firstName))->where('last_name', 'like', $like($lastName)))
-            ->orWhere(fn (Builder $w) => $w->where('first_name', 'like', $like($lastName))->where('last_name', 'like', $like($firstName))));
+            ->where(fn (Builder $w) => $w->where('first_name', $firstName)->where('last_name', $lastName))
+            ->orWhere(fn (Builder $w) => $w->where('first_name', $lastName)->where('last_name', $firstName)));
     }
 
     /**
-     * What a member typed on the check-in page: an email, ID number or phone (exact match),
-     * or a name ("Nino Beridze", "beri nin" or just one of the names, start of the word is enough).
+     * What a member typed on the check-in page: an email, ID number or phone, or the full name
+     * ("Nino Beridze" or "Beridze Nino"). Exact matches only — the page doesn't list anybody, so a part
+     * of a name must not be enough to check in as somebody else.
      */
     public function scopeCheckinMatch(Builder $query, string $term): Builder
     {
@@ -75,14 +84,9 @@ class ClubMember extends Model
             return $query->where(fn (Builder $q) => $q->where('personal_id', $digits)->orWhere('phone', $digits));
         }
 
-        $words = preg_split('/\s+/', $term, 2);
-        if (count($words) === 2) {
-            return $query->nameMatch($words[0], $words[1]);
-        }
+        $words = preg_split('/\s+/', preg_replace('/\s+/', ' ', $term), 2);
 
-        $like = str_replace(['%', '_'], ['\%', '\_'], $term).'%';
-
-        return $query->where(fn (Builder $q) => $q->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like));
+        return count($words) === 2 ? $query->nameMatch($words[0], $words[1]) : $query->whereRaw('1 = 0');
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

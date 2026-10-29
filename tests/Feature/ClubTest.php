@@ -17,6 +17,9 @@ class ClubTest extends TestCase
 
     private User $admin;
 
+    /** Self-registration fields besides the name and contacts. */
+    private const REST_OF_CARD = ['birth_date' => '1995-05-05', 'gender' => 'female', 'emergency_contact_name' => 'Mother', 'emergency_contact_phone' => '555-123-123'];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -109,40 +112,43 @@ class ClubTest extends TestCase
         $this->assertSame(['new' => 0, 'duplicate' => 3, 'invalid' => 0], $response->viewData('summary'));
     }
 
-    public function test_member_finds_their_name_and_checks_in(): void
+    public function test_member_finds_themselves_and_checks_in_without_seeing_anybodys_data(): void
     {
-        $member = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => '599123456', 'email' => 'nino@gmail.com']);
-        ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Kapanadze']);
+        $member = ClubMember::factory()->complete()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => '599123456', 'email' => 'nino@gmail.com', 'birth_date' => '1990-02-01']);
+        ClubMember::factory()->complete()->create(['first_name' => 'Nino', 'last_name' => 'Kapanadze', 'phone' => '599000002']);
+        ClubMember::factory()->count(2)->complete()->create(['first_name' => 'Giorgi', 'last_name' => 'Maisuradze']);
         $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
         $url = "/m/{$meeting->token}";
 
         // Opening the link without a fresh code from the screen is not enough.
         $this->get($url)->assertOk()->assertSee('scan the QR code');
-        $this->post($url, ['member_id' => $member->id, 'q' => 'Nino Beridze']);
+        $this->post($url, ['found' => 1, 'q' => 'Nino Beridze']);
         $this->assertDatabaseCount('club_meeting_attendances', 0);
 
         $this->get("{$url}?c=wrong")->assertRedirect($url);
         $this->get($url)->assertSee('scan the QR code');
 
-        // Scan → search by name (any order, start of the name is enough) → pick yourself.
         $this->get("{$url}?c=".$meeting->checkinCode())->assertRedirect($url);
         $this->get($url)->assertSee('Find me');
-        $this->get("{$url}?q=beri+nin")
-            ->assertOk()->assertSee('Nino Beridze')->assertSee('•••456')->assertDontSee('Kapanadze');
-        $this->get("{$url}?q=Nino")->assertSee('Nino Beridze')->assertSee('Nino Kapanadze');
 
-        // Phone, ID number and email find the member too (exact match only).
-        $this->get("{$url}?q=599-123-456")->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
-        $this->get("{$url}?q={$member->personal_id}")->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
-        $this->get("{$url}?q=".strtoupper($member->email))->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
-        $this->get("{$url}?q=599123")->assertDontSee('Nino Beridze');
+        // Full name (any order, any case), phone, ID number or email: "found", and nothing about the member is shown.
+        foreach (['Nino Beridze', 'beridze  NINO', '599-123-456', $member->personal_id, strtoupper($member->email)] as $term) {
+            $this->get("{$url}?q=".urlencode($term))->assertOk()
+                ->assertSee('We found you')->assertSee('Check me in')
+                ->assertDontSee('Kapanadze')->assertDontSee('456</', false)->assertDontSee('1990')->assertDontSee('nino@gmail.com')
+                ->assertDontSee('not registered yet');
+        }
 
-        // A member id that doesn't match the search is refused.
-        $other = ClubMember::where('last_name', 'Kapanadze')->first();
-        $this->post($url, ['member_id' => $other->id, 'q' => 'Nino Beridze'])->assertSessionHasErrors('q');
+        // Part of a name or number finds nobody; the same full name twice asks for the ID number or phone.
+        foreach (['Nino', 'Beri Nin', '599123'] as $term) {
+            $this->get("{$url}?q=".urlencode($term))->assertSee('could not find')->assertDontSee('Check me in');
+        }
+        $this->get("{$url}?q=Giorgi+Maisuradze")->assertSee('More than one member')->assertDontSee('Check me in')->assertDontSee('not registered yet');
+        $this->post($url, ['found' => 1, 'q' => 'Giorgi Maisuradze'])->assertSessionHasErrors('q');
+        $this->post($url, ['found' => 1, 'q' => 'Nino'])->assertSessionHasErrors('q');
         $this->assertDatabaseCount('club_meeting_attendances', 0);
 
-        $this->post($url, ['member_id' => $member->id, 'q' => 'Nino Beridze'])
+        $this->post($url, ['found' => 1, 'q' => 'Nino Beridze'])
             ->assertRedirect($url)
             ->assertCookie('club_member');
         $this->assertDatabaseHas('club_meeting_attendances', ['club_meeting_id' => $meeting->id, 'club_member_id' => $member->id, 'method' => 'qr']);
@@ -165,16 +171,20 @@ class ClubTest extends TestCase
         // Every field is required.
         $this->post($url, ['new' => 1, 'q' => 'Luka', 'first_name' => 'Luka', 'last_name' => 'Tsiklauri'])
             ->assertRedirect("{$url}?q=Luka")
-            ->assertSessionHasErrors(['personal_id', 'phone', 'email']);
+            ->assertSessionHasErrors(['personal_id', 'phone', 'email', 'birth_date', 'gender', 'emergency_contact_name', 'emergency_contact_phone']);
         $this->assertDatabaseCount('club_members', 0);
 
-        $luka = ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'personal_id' => '01001012345', 'phone' => '577 11 12 22', 'email' => 'Luka@Gmail.com'];
+        $luka = ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'personal_id' => '01001012345', 'phone' => '577 11 12 22', 'email' => 'Luka@Gmail.com']
+            + self::REST_OF_CARD;
         $this->post($url, $luka)->assertRedirect($url)->assertSessionHasNoErrors();
 
         $luka = ClubMember::where('first_name', 'Luka')->firstOrFail();
         $this->assertTrue($luka->is_pending);
         $this->assertSame('577111222', $luka->phone);
         $this->assertSame('luka@gmail.com', $luka->email);
+        $this->assertSame('female', $luka->gender);
+        $this->assertSame('555123123', $luka->emergency_contact_phone);
+        $this->assertSame([], $luka->missingProfileFields());
         $this->assertDatabaseHas('club_meeting_attendances', ['club_member_id' => $luka->id]);
 
         // ID number, phone and email can't be registered twice: the person is told to search instead.
@@ -197,7 +207,7 @@ class ClubTest extends TestCase
 
         // Somebody who is already a member registers again → merged into the existing one.
         $nino = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => null, 'email' => null]);
-        $this->post($url, ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze', 'personal_id' => '01001099999', 'phone' => '599000111', 'email' => 'nino@gmail.com'])
+        $this->post($url, ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze', 'personal_id' => '01001099999', 'phone' => '599000111', 'email' => 'nino@gmail.com'] + self::REST_OF_CARD)
             ->assertSessionHasNoErrors();
         $copy = ClubMember::where('is_pending', true)->firstOrFail();
 
@@ -208,6 +218,54 @@ class ClubTest extends TestCase
         $this->assertDatabaseHas('club_meeting_attendances', ['club_meeting_id' => $meeting->id, 'club_member_id' => $nino->id]);
         $this->assertSame('599000111', $nino->fresh()->phone);
         $this->assertSame('nino@gmail.com', $nino->fresh()->email);
+        $this->assertSame('Mother', $nino->fresh()->emergency_contact_name);
+    }
+
+    public function test_member_with_an_incomplete_card_is_asked_for_the_missing_details(): void
+    {
+        $nino = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'personal_id' => '01001012345', 'phone' => '599123456',
+            'email' => null, 'birth_date' => null, 'gender' => 'female']);
+        $other = ClubMember::factory()->complete()->create(['email' => 'taken@gmail.com']);
+        $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
+        $url = "/m/{$meeting->token}";
+
+        // Nobody can open the form without checking in first.
+        $this->get("{$url}/profile")->assertRedirect($url);
+        $this->post("{$url}/profile", ['email' => 'x@gmail.com'])->assertRedirect($url);
+
+        $this->get("{$url}?c=".$meeting->checkinCode());
+        $this->get("{$url}?q=Nino+Beridze")->assertSee('We found you')->assertDontSee('name="email"', false);
+        $this->post($url, ['found' => 1, 'q' => 'Nino Beridze'])->assertRedirect("{$url}/profile");
+        $this->assertDatabaseHas('club_meeting_attendances', ['club_member_id' => $nino->id]); // checked in already
+
+        // Only the empty fields are asked.
+        $this->get("{$url}/profile")->assertOk()->assertSee('You are checked in')
+            ->assertSee('name="email"', false)->assertSee('name="birth_date"', false)->assertSee('name="emergency_contact_phone"', false)
+            ->assertDontSee('name="phone"', false)->assertDontSee('name="gender"', false);
+
+        // "Later" → the check-in page offers it again.
+        $this->withCookie('club_member', (string) $nino->id)->get($url)->assertSee('checked in')->assertSee('Complete your details');
+
+        $this->post("{$url}/profile", ['email' => 'taken@gmail.com', 'birth_date' => '1990-02-01'])
+            ->assertRedirect("{$url}/profile")->assertSessionHasErrors(['email', 'emergency_contact_name', 'emergency_contact_phone']);
+
+        // Filled-in fields can't be overwritten from here.
+        $this->post("{$url}/profile", ['email' => 'Nino@Gmail.com', 'birth_date' => '1990-02-01', 'emergency_contact_name' => 'Mother',
+            'emergency_contact_phone' => '555 12-31-23', 'phone' => '500000000', 'first_name' => 'Hacked'])
+            ->assertRedirect($url)->assertSessionHasNoErrors();
+
+        $nino->refresh();
+        $this->assertSame('nino@gmail.com', $nino->email);
+        $this->assertSame('555123123', $nino->emergency_contact_phone);
+        $this->assertSame('599123456', $nino->phone);
+        $this->assertSame('Nino', $nino->first_name);
+        $this->assertSame([], $nino->missingProfileFields());
+        $this->assertNotSame('Hacked', $other->fresh()->first_name);
+
+        // Card complete: not asked again, and the form is gone.
+        $this->withCookie('club_member', (string) $nino->id)->get($url)->assertDontSee('Complete your details');
+        $this->get("{$url}/profile")->assertRedirect($url);
+        $this->withCookie('club_member', (string) $nino->id)->post($url, ['remembered' => 1])->assertRedirect($url);
     }
 
     public function test_old_qr_codes_expire_and_closed_meetings_reject_check_in(): void

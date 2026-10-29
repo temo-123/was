@@ -77,6 +77,7 @@
                         <td>
                             <span class="fw-semibold">{{ $member->full_name }}</span>
                             @unless ($member->is_active)<span class="badge text-bg-secondary">{{ __('inactive') }}</span>@endunless
+                            @if ($member->missingProfileFields())<span class="badge text-bg-light border" title="{{ __('Will be asked for the missing details at the next check-in') }}"><i class="bi bi-person-vcard"></i> {{ __('incomplete') }}</span>@endif
                         </td>
                         <td class="font-monospace">{{ $member->personal_id ?? '—' }}</td>
                         <td class="font-monospace">{{ $member->phone ?? '—' }}</td>

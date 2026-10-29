@@ -45,14 +45,42 @@ class ClubMemberRequest extends FormRequest
             'phone' => $phone,
             'email' => $email,
             'birth_date' => ['nullable', 'date', 'before:today', 'after:1900-01-01'],
+            'gender' => ['nullable', Rule::in(array_keys(ClubMember::GENDERS))],
+            'emergency_contact_name' => ['nullable', 'string', 'min:2', 'max:150', 'regex:'.VisitorRequest::NAME_REGEX],
+            'emergency_contact_phone' => ['nullable', 'string', 'regex:'.VisitorRequest::PHONE_REGEX],
             'joined_on' => ['nullable', 'date', 'after:1900-01-01'],
             'comment' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
+    /**
+     * The member card on the public check-in pages: every field of ClubMember::PROFILE_FIELDS is required.
+     * $only limits the rules to some fields (the "complete your details" screen asks only for the missing ones).
+     */
+    public static function profileRules(?int $ignoreId = null, ?array $only = null): array
+    {
+        $rules = array_intersect_key(self::fieldRules($ignoreId, false), array_flip($only ?? ClubMember::PROFILE_FIELDS));
+
+        return array_map(fn (array $field) => ['required', ...array_diff($field, ['nullable'])], $rules);
+    }
+
+    /** VisitorRequest::normalize() plus the emergency contact. */
+    public static function normalize(array $data): array
+    {
+        $data = VisitorRequest::normalize($data);
+        if (isset($data['emergency_contact_phone']) && is_string($data['emergency_contact_phone'])) {
+            $data['emergency_contact_phone'] = preg_replace('/[\s\-().+]/', '', $data['emergency_contact_phone']);
+        }
+        if (isset($data['emergency_contact_name']) && is_string($data['emergency_contact_name'])) {
+            $data['emergency_contact_name'] = preg_replace('/\s+/', ' ', trim($data['emergency_contact_name']));
+        }
+
+        return $data;
+    }
+
     protected function prepareForValidation(): void
     {
-        $this->merge(VisitorRequest::normalize($this->only(['personal_id', 'phone', 'first_name', 'last_name', 'email'])));
+        $this->merge(self::normalize($this->only(['personal_id', 'phone', 'first_name', 'last_name', 'email', 'emergency_contact_name', 'emergency_contact_phone'])));
     }
 
     public function messages(): array
@@ -68,11 +96,21 @@ class ClubMemberRequest extends FormRequest
             'email.unique' => __('A club member with this email already exists.'),
             'personal_id.required_without' => __('Enter the ID number or the phone number.'),
             'phone.required_without' => __('Enter the ID number or the phone number.'),
+            'emergency_contact_name.regex' => __('The name may contain only letters, spaces and dashes.'),
+            'emergency_contact_phone.regex' => __('The phone number must contain only digits (9–15).'),
         ];
     }
 
     public function attributes(): array
     {
-        return ['personal_id' => __('ID number'), 'birth_date' => __('date of birth'), 'joined_on' => __('member since')];
+        return self::fieldAttributes();
+    }
+
+    public static function fieldAttributes(): array
+    {
+        return [
+            'personal_id' => __('ID number'), 'birth_date' => __('date of birth'), 'joined_on' => __('member since'),
+            'emergency_contact_name' => __('emergency contact'), 'emergency_contact_phone' => __('emergency contact phone'),
+        ];
     }
 }

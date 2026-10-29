@@ -20,6 +20,8 @@ Route::get('/privacy', [PageController::class, 'privacy'])->name('privacy');
 Route::get('/m/{meeting:token}', [CheckinController::class, 'show'])->name('club.checkin');
 Route::post('/m/{meeting:token}', [CheckinController::class, 'store'])->middleware('throttle:20,1')->name('club.checkin.store');
 Route::post('/m/{meeting:token}/forget', [CheckinController::class, 'forget'])->name('club.checkin.forget');
+Route::get('/m/{meeting:token}/profile', [CheckinController::class, 'profile'])->name('club.checkin.profile');
+Route::post('/m/{meeting:token}/profile', [CheckinController::class, 'updateProfile'])->middleware('throttle:20,1')->name('club.checkin.profile.update');
 
 // --- Authentication ------------------------------------------------------------------------
 Route::middleware('guest')->group(function () {

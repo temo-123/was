@@ -99,8 +99,8 @@ class MemberController extends Controller
                 ->whereNotIn('club_meeting_id', $target->attendances()->pluck('club_meeting_id'))
                 ->update(['club_member_id' => $target->id]);
             $member->delete(); // attendance at meetings the target already has goes with it
-            // Contacts are unique, so they can move only after the copy is gone.
-            foreach (['personal_id', 'phone', 'email'] as $field) {
+            // Empty fields of the member card are filled from the copy. Contacts are unique, so they can move only after the copy is gone.
+            foreach (ClubMember::PROFILE_FIELDS as $field) {
                 $target->{$field} ??= $member->{$field};
             }
             $target->save();
