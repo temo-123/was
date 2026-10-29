@@ -60,6 +60,12 @@ return [
         'activity' => [
             'activity.view' => 'View the activity log',
         ],
+        'club' => [
+            'club.members.view' => 'View sport club members',
+            'club.members.manage' => 'Add, edit, delete, import and export club members',
+            'club.meetings.view' => 'View club meetings and attendance',
+            'club.meetings.manage' => 'Create meetings, show the check-in QR code and edit attendance',
+        ],
     ],
 
     'roles' => [

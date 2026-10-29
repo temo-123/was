@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Lets the Vue components in the admin panel call /api/* with the session cookie.
         $middleware->statefulApi();
 
+        // A tunnel (cloudflared / ngrok) running on this computer forwards https requests as http:
+        // trust its X-Forwarded-* headers so links, forms and assets use https and the public host.
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+
         $middleware->alias(['active' => EnsureUserIsActive::class]);
         $middleware->web(append: [EnsureUserIsActive::class]);
 

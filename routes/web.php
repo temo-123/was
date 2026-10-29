@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Club\CheckinController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/terms', [PageController::class, 'terms'])->name('terms');
 Route::get('/privacy', [PageController::class, 'privacy'])->name('privacy');
+
+// --- Club meeting check-in (QR code, no login) ---------------------------------------------
+Route::get('/m/{meeting:token}', [CheckinController::class, 'show'])->name('club.checkin');
+Route::post('/m/{meeting:token}', [CheckinController::class, 'store'])->middleware('throttle:20,1')->name('club.checkin.store');
+Route::post('/m/{meeting:token}/forget', [CheckinController::class, 'forget'])->name('club.checkin.forget');
 
 // --- Authentication ------------------------------------------------------------------------
 Route::middleware('guest')->group(function () {
@@ -92,6 +98,45 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin.access'])
         Route::get('/roles/{role}/edit', [Admin\RoleController::class, 'edit'])->name('roles.edit');
         Route::put('/roles/{role}', [Admin\RoleController::class, 'update'])->name('roles.update');
         Route::delete('/roles/{role}', [Admin\RoleController::class, 'destroy'])->name('roles.destroy');
+    });
+
+    Route::prefix('club')->name('club.')->group(function () {
+        Route::middleware('can:club.members.view')->group(function () {
+            Route::get('/members', [Admin\Club\MemberController::class, 'index'])->name('members.index');
+        });
+        Route::middleware('can:club.members.manage')->group(function () {
+            Route::get('/members/create', [Admin\Club\MemberController::class, 'create'])->name('members.create');
+            Route::post('/members', [Admin\Club\MemberController::class, 'store'])->name('members.store');
+            Route::get('/members/export', [Admin\Club\MemberController::class, 'export'])->name('members.export');
+            Route::get('/members/template', [Admin\Club\MemberController::class, 'template'])->name('members.template');
+            Route::get('/members/{member}/edit', [Admin\Club\MemberController::class, 'edit'])->name('members.edit');
+            Route::put('/members/{member}', [Admin\Club\MemberController::class, 'update'])->name('members.update');
+            Route::delete('/members/{member}', [Admin\Club\MemberController::class, 'destroy'])->name('members.destroy');
+            Route::post('/members/{member}/approve', [Admin\Club\MemberController::class, 'approve'])->name('members.approve');
+            Route::post('/members/{member}/merge', [Admin\Club\MemberController::class, 'merge'])->name('members.merge');
+
+            Route::get('/import', [Admin\Club\MemberImportController::class, 'create'])->name('import.create');
+            Route::post('/import/preview', [Admin\Club\MemberImportController::class, 'preview'])->name('import.preview');
+            Route::post('/import', [Admin\Club\MemberImportController::class, 'store'])->name('import.store');
+        });
+
+        Route::get('/meetings', [Admin\Club\MeetingController::class, 'index'])->middleware('can:club.meetings.view')->name('meetings.index');
+        Route::middleware('can:club.meetings.manage')->group(function () {
+            Route::get('/meetings/create', [Admin\Club\MeetingController::class, 'create'])->name('meetings.create');
+            Route::post('/meetings', [Admin\Club\MeetingController::class, 'store'])->name('meetings.store');
+            Route::get('/meetings/{meeting}/edit', [Admin\Club\MeetingController::class, 'edit'])->name('meetings.edit');
+            Route::put('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'update'])->name('meetings.update');
+            Route::delete('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'destroy'])->name('meetings.destroy');
+            Route::post('/meetings/{meeting}/toggle', [Admin\Club\MeetingController::class, 'toggle'])->name('meetings.toggle');
+            Route::get('/meetings/{meeting}/screen', [Admin\Club\MeetingController::class, 'screen'])->name('meetings.screen');
+            Route::get('/meetings/{meeting}/qr', [Admin\Club\MeetingController::class, 'qr'])->name('meetings.qr');
+            Route::post('/meetings/{meeting}/attendances', [Admin\Club\MeetingController::class, 'addAttendee'])->name('meetings.attendances.store');
+            Route::delete('/meetings/{meeting}/attendances/{attendance}', [Admin\Club\MeetingController::class, 'removeAttendee'])->name('meetings.attendances.destroy');
+        });
+        Route::middleware('can:club.meetings.view')->group(function () {
+            Route::get('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'show'])->name('meetings.show');
+            Route::get('/meetings/{meeting}/export', [Admin\Club\MeetingController::class, 'export'])->name('meetings.export');
+        });
     });
 
     Route::get('/activity', Admin\ActivityLogController::class)->middleware('can:activity.view')->name('activity');

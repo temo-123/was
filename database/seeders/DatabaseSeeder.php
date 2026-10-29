@@ -14,8 +14,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RoleSeeder::class,     // roles admin / worker / user + permissions
-            PricingSeeder::class,  // price list
+            PermissionSeeder::class, // permissions from config/permissions.php
+            RoleSeeder::class,       // roles admin / worker / user + their default permissions
+            PricingSeeder::class,    // price list
         ]);
     }
 }
