@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ClubMeeting;
 use App\Models\ClubMember;
 use App\Models\User;
+use App\Services\Club\CheckinQr;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use OpenSpout\Common\Entity\Row;
@@ -322,6 +323,50 @@ class ClubTest extends TestCase
         $this->actingAs($this->admin)->get("/admin/club/meetings/{$meeting->id}/screen")->assertOk()->assertSee('Registration is closed')->assertDontSee('<svg', false);
         $this->actingAs($this->admin)->getJson("/admin/club/meetings/{$meeting->id}/qr")->assertJson(['is_open' => false, 'svg' => null, 'url' => null]);
         $this->actingAs($this->admin)->get("/admin/club/meetings/{$meeting->id}")->assertSee('This meeting is finished')->assertDontSee('Finish meeting');
+    }
+
+    public function test_qr_screen_shows_the_wifi_to_join(): void
+    {
+        $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
+        $screen = "/admin/club/meetings/{$meeting->id}/screen";
+
+        // Nothing configured: no Wi-Fi block.
+        config(['club.wifi.name' => null]);
+        $this->actingAs($this->admin)->get($screen)->assertOk()->assertDontSee('Connect to our Wi-Fi');
+
+        // Default network from config.
+        config(['club.wifi' => ['name' => 'ClimbingClub', 'password' => 'secret123', 'encryption' => 'WPA', 'hidden' => false, 'show_password' => true]]);
+        $this->actingAs($this->admin)->get($screen)->assertSee('Connect to our Wi-Fi')->assertSee('ClimbingClub')->assertSee('secret123');
+        config(['club.wifi.show_password' => false]);
+        $this->actingAs($this->admin)->get($screen)->assertSee('ClimbingClub')->assertDontSee('secret123');
+
+        // The meeting's own network wins; without a password it's an open network.
+        $this->actingAs($this->admin)->put("/admin/club/meetings/{$meeting->id}", ['title' => 'Monthly', 'starts_at' => now()->format('Y-m-d H:i'), 'wifi_name' => 'Park; Guest'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['name' => 'Park; Guest', 'password' => null, 'encryption' => 'nopass'], array_intersect_key($meeting->fresh()->wifi(), array_flip(['name', 'password', 'encryption'])));
+        $this->actingAs($this->admin)->get($screen)->assertSee('Park; Guest')->assertSee('No password')->assertDontSee('ClimbingClub');
+
+        $qr = app(CheckinQr::class);
+        $this->assertSame('WIFI:T:nopass;S:Park\\; Guest;;', $qr->wifiPayload($meeting->fresh()->wifi()));
+        $this->assertSame('WIFI:T:WPA;S:Club;P:a\\:b\\,c;H:true;;', $qr->wifiPayload(['name' => 'Club', 'password' => 'a:b,c', 'encryption' => 'WPA', 'hidden' => true]));
+    }
+
+    public function test_meetings_are_listed_by_date(): void
+    {
+        ClubMeeting::create(['title' => 'Autumn meeting', 'starts_at' => '2026-10-05 18:00', 'location' => 'Gym hall']);
+        ClubMeeting::create(['title' => 'Summer meeting', 'starts_at' => '2026-07-10 18:00']);
+        ClubMeeting::create(['title' => 'Spring meeting', 'starts_at' => '2026-04-01 18:00']);
+
+        $this->actingAs($this->admin)->get('/admin/club/meetings')->assertOk()
+            ->assertSeeInOrder(['October 2026', 'Autumn meeting', 'July 2026', 'Summer meeting', 'April 2026', 'Spring meeting']);
+        $this->actingAs($this->admin)->get('/admin/club/meetings?order=oldest')
+            ->assertSeeInOrder(['Spring meeting', 'Summer meeting', 'Autumn meeting']);
+
+        $this->actingAs($this->admin)->get('/admin/club/meetings?from=2026-07-01&to=2026-07-31')
+            ->assertSee('Summer meeting')->assertDontSee('Autumn meeting')->assertDontSee('Spring meeting');
+        $this->actingAs($this->admin)->get('/admin/club/meetings?search=hall')->assertSee('Autumn meeting')->assertDontSee('Summer meeting');
+        $this->actingAs($this->admin)->get('/admin/club/meetings?from=2025-01-01&to=2025-01-31')->assertSee('No meetings in this period.');
+        $this->actingAs($this->admin)->get('/admin/club/meetings?from=2026-08-01&to=2026-07-01')->assertSessionHasErrors('to');
     }
 
     private function xlsx(array $rows): UploadedFile

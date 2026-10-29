@@ -25,6 +25,28 @@
                     <input id="location" name="location" maxlength="255" value="{{ old('location', $meeting->location) }}" class="form-control @error('location') is-invalid @enderror">
                 </div>
                 <div class="col-12">
+                    <div class="fw-semibold"><i class="bi bi-wifi"></i> {{ __('Wi-Fi for the phones') }}</div>
+                    <div class="form-text mt-0">
+                        @if ($default = config('club.wifi.name'))
+                            {{ __('Shown on the QR screen. Leave empty to use the default network: :name.', ['name' => $default]) }}
+                        @else
+                            {{ __('Shown on the QR screen with a code that connects the phone. Leave empty to show no Wi-Fi (a default can be set with CLUB_WIFI_NAME in .env).') }}
+                        @endif
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="wifi_name" class="form-label">{{ __('Wi-Fi name') }}</label>
+                    <input id="wifi_name" name="wifi_name" maxlength="32" autocomplete="off" value="{{ old('wifi_name', $meeting->wifi_name) }}"
+                           placeholder="{{ config('club.wifi.name') }}" class="form-control @error('wifi_name') is-invalid @enderror">
+                    <div class="invalid-feedback">{{ $errors->first('wifi_name') }}</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="wifi_password" class="form-label">{{ __('Wi-Fi password') }} <small class="text-body-secondary">({{ __('empty = open network') }})</small></label>
+                    <input id="wifi_password" name="wifi_password" maxlength="63" autocomplete="off" value="{{ old('wifi_password', $meeting->wifi_password) }}"
+                           class="form-control font-monospace @error('wifi_password') is-invalid @enderror">
+                    <div class="invalid-feedback">{{ $errors->first('wifi_password') }}</div>
+                </div>
+                <div class="col-12">
                     <label for="notes" class="form-label">{{ __('Notes') }}</label>
                     <textarea id="notes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror">{{ old('notes', $meeting->notes) }}</textarea>
                 </div>

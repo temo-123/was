@@ -16,6 +16,10 @@
         .step { display: flex; gap: .9rem; align-items: center; margin-bottom: 1.1rem; font-size: 1.25rem; }
         .step-num { flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bs-primary); color: #fff;
             display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .wifi-card { display: flex; gap: 1rem; align-items: center; background: #fff; border-radius: 1.25rem; padding: .9rem 1.1rem;
+            box-shadow: 0 .5rem 1.5rem rgba(13, 38, 76, .08); margin-bottom: 1.5rem; }
+        .wifi-card svg { width: min(22vh, 11vw); min-width: 120px; height: auto; display: block; flex: none; }
+        .wifi-value { font-size: 1.35rem; font-weight: 700; word-break: break-all; }
         .count { font-size: clamp(4rem, 9vw, 8rem); font-weight: 700; line-height: 1; color: var(--bs-success); }
         #qr-latest li { background: #fff; border-radius: 1rem; padding: .55rem .9rem; margin-bottom: .5rem; font-size: 1.15rem;
             box-shadow: 0 .25rem .75rem rgba(13, 38, 76, .06); display: flex; justify-content: space-between; gap: .5rem; }
@@ -45,9 +49,28 @@
             @if ($meeting->location)<br><i class="bi bi-geo-alt"></i> {{ $meeting->location }}@endif
         </p>
 
-        <div class="step"><span class="step-num">1</span> {{ __('Open your phone camera') }}</div>
-        <div class="step"><span class="step-num">2</span> {{ __('Point it at the QR code') }}</div>
-        <div class="step"><span class="step-num">3</span> {{ __('Find yourself by name, phone, email or ID number') }}</div>
+        @if ($wifi)
+            {{-- Step 1: join the network the laptop is in (the check-in page is served from it) --}}
+            <div class="wifi-card text-start">
+                {!! $wifiSvg !!}
+                <div>
+                    <div class="text-primary fw-semibold small text-uppercase"><span class="step-num d-inline-flex me-1" style="width:1.8rem;height:1.8rem">1</span> {{ __('Connect to our Wi-Fi') }}</div>
+                    <div class="small text-body-secondary mt-1">{{ __('Scan this code to connect, or choose the network:') }}</div>
+                    <div class="wifi-value"><i class="bi bi-wifi"></i> {{ $wifi['name'] }}</div>
+                    @if ($wifi['encryption'] !== 'nopass' && $wifi['show_password'])
+                        <div class="small text-body-secondary mt-1">{{ __('Password') }}</div>
+                        <div class="wifi-value font-monospace">{{ $wifi['password'] }}</div>
+                    @elseif ($wifi['encryption'] === 'nopass')
+                        <div class="small text-body-secondary mt-1">{{ __('No password') }}</div>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        @php($step = $wifi ? 1 : 0)
+        <div class="step"><span class="step-num">{{ $step + 1 }}</span> {{ __('Open your phone camera') }}</div>
+        <div class="step"><span class="step-num">{{ $step + 2 }}</span> {{ __('Point it at the big QR code') }}</div>
+        <div class="step"><span class="step-num">{{ $step + 3 }}</span> {{ __('Find yourself by name, phone, email or ID number') }}</div>
 
         @if ($unreachable || $localhost)
             <div class="alert alert-warning small mt-4 mb-0">

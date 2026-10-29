@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-#[Fillable(['title', 'starts_at', 'location', 'notes', 'is_open', 'created_by'])]
+#[Fillable(['title', 'starts_at', 'location', 'wifi_name', 'wifi_password', 'notes', 'is_open', 'created_by'])]
 class ClubMeeting extends Model
 {
     protected function casts(): array
@@ -23,6 +23,27 @@ class ClubMeeting extends Model
     protected static function booted(): void
     {
         static::creating(fn (self $meeting) => $meeting->token ??= Str::random(40));
+    }
+
+    /**
+     * Wi-Fi to show on the QR screen: this meeting's own network, or the default one (config club.wifi).
+     *
+     * @return array{name: string, password: ?string, encryption: string, hidden: bool, show_password: bool}|null
+     */
+    public function wifi(): ?array
+    {
+        $default = config('club.wifi');
+        $wifi = filled($this->wifi_name)
+            ? ['name' => $this->wifi_name, 'password' => $this->wifi_password] + $default
+            : $default;
+        if (blank($wifi['name'])) {
+            return null;
+        }
+        if (blank($wifi['password'])) {
+            $wifi['encryption'] = 'nopass';
+        }
+
+        return $wifi;
     }
 
     public function creator(): BelongsTo

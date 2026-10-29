@@ -9,7 +9,7 @@ use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 
-/** Builds the check-in URL behind a meeting's QR code and renders the code as SVG. */
+/** Builds the check-in URL behind a meeting's QR code (and the Wi-Fi code next to it) and renders the codes as SVG. */
 class CheckinQr
 {
     private const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '[::1]'];
@@ -49,6 +49,22 @@ class CheckinQr
         $svg = (new Writer(new ImageRenderer(new RendererStyle($size, 2), new SvgImageBackEnd)))->writeString($text);
 
         return preg_replace('/^<\?xml[^>]*>\s*/', '', $svg);
+    }
+
+    /**
+     * Text of a "join Wi-Fi" QR code (understood by the camera app on iPhone and Android):
+     * WIFI:T:WPA;S:name;P:password;; — \ ; , : " in the name and password are escaped with a backslash.
+     */
+    public function wifiPayload(array $wifi): string
+    {
+        $escape = fn (?string $value) => addcslashes((string) $value, '\\;,:"');
+        $type = strtoupper($wifi['encryption'] ?? 'WPA');
+        $type = in_array($type, ['WEP', 'NOPASS'], true) ? ($type === 'NOPASS' ? 'nopass' : 'WEP') : 'WPA';
+
+        return 'WIFI:T:'.$type.';S:'.$escape($wifi['name']).';'
+            .($type !== 'nopass' ? 'P:'.$escape($wifi['password']).';' : '')
+            .(! empty($wifi['hidden']) ? 'H:true;' : '')
+            .';';
     }
 
     /** IPv4 address of this computer in the local network (Wi-Fi / hotspot). */

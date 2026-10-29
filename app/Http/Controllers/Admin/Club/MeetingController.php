@@ -18,11 +18,34 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MeetingController extends Controller
 {
-    public function index(): View
+    /** Meetings by date: newest first (or oldest), optionally only a date range or a title. */
+    public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'order' => ['nullable', Rule::in(['newest', 'oldest'])],
+        ]);
+
+        $meetings = ClubMeeting::withCount('attendances')
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->whereDate('starts_at', '>=', $from))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->whereDate('starts_at', '<=', $to))
+            ->when($filters['search'] ?? null, function ($q, $search) {
+                $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $search).'%';
+                $q->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('location', 'like', $like));
+            })
+            ->orderBy('starts_at', ($filters['order'] ?? 'newest') === 'oldest' ? 'asc' : 'desc')
+            ->orderBy('id')
+            ->paginate(25)
+            ->withQueryString();
+
         return view('admin.club.meetings.index', [
-            'meetings' => ClubMeeting::withCount('attendances')->latest('starts_at')->paginate(25),
+            'meetings' => $meetings,
+            // The page's meetings under month headings ("October 2026").
+            'months' => $meetings->getCollection()->groupBy(fn (ClubMeeting $m) => $m->starts_at->format('Y-m')),
             'activeMembers' => ClubMember::where('is_active', true)->count(),
+            'filtered' => array_filter($filters) !== [] && array_keys(array_filter($filters)) !== ['order'],
         ]);
     }
 
@@ -97,6 +120,8 @@ class MeetingController extends Controller
             'unreachable' => $qr->unreachable($request),
             'localhost' => str_contains(parse_url($url, PHP_URL_HOST) ?? '', 'localhost') || str_starts_with(parse_url($url, PHP_URL_HOST) ?? '', '127.'),
             'rotation' => config('club.qr_rotation_seconds'),
+            'wifi' => $wifi = $meeting->wifi(),
+            'wifiSvg' => $wifi ? $qr->svg($qr->wifiPayload($wifi), 220) : null,
         ] + $this->liveData($meeting));
     }
 
@@ -161,6 +186,8 @@ class MeetingController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'starts_at' => ['required', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
+            'wifi_name' => ['nullable', 'string', 'max:32'], // the longest network name Wi-Fi allows
+            'wifi_password' => ['nullable', 'string', 'max:63'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
     }

@@ -18,4 +18,17 @@ return [
 
     // After a valid scan, the member has this many minutes to submit the check-in form.
     'checkin_minutes' => 15,
+
+    /*
+    | Wi-Fi the phones should join (the laptop's network / hotspot). Shown on the QR screen as a second
+    | QR code that connects the phone in one tap, plus the name and password as text. Leave the name
+    | empty to hide it. A meeting can use another network (meeting form → Wi-Fi).
+    */
+    'wifi' => [
+        'name' => env('CLUB_WIFI_NAME'),
+        'password' => env('CLUB_WIFI_PASSWORD'),
+        'encryption' => env('CLUB_WIFI_ENCRYPTION', 'WPA'), // WPA (also WPA2/WPA3), WEP, or nopass
+        'hidden' => (bool) env('CLUB_WIFI_HIDDEN', false), // the network doesn't broadcast its name
+        'show_password' => (bool) env('CLUB_WIFI_SHOW_PASSWORD', true), // also print the password under the code
+    ],
 ];
