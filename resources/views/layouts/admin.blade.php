@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700&display=swap" rel="stylesheet">
     @vite(['resources/sass/admin.scss', 'resources/js/admin.js'])
+    @include('partials.js-translations')
     @stack('head')
 </head>
 <body class="layout-fixed sidebar-expand-lg bg-body-tertiary">
@@ -25,6 +26,7 @@
                 @endcan
             </ul>
             <ul class="navbar-nav ms-auto">
+                @include('partials.locale-switcher')
                 <li class="nav-item d-none d-md-block">
                     <a href="{{ route('home') }}" class="nav-link" target="_blank" title="{{ __('Website') }}"><i class="bi bi-globe"></i></a>
                 </li>
@@ -38,7 +40,7 @@
                             <img src="{{ auth()->user()->avatarUrl() }}" class="rounded-circle shadow" alt="">
                             <p>
                                 {{ auth()->user()->name }}
-                                <small>{{ auth()->user()->roles->pluck('display_name')->join(', ') }}</small>
+                                <small>{{ auth()->user()->roles->map(fn ($role) => __($role->display_name))->join(', ') }}</small>
                             </p>
                         </li>
                         <li class="user-footer">

@@ -37,7 +37,7 @@
                     <select id="visitor_category_id" name="visitor_category_id" class="form-select">
                         @foreach ($categories as $category)
                             <option value="{{ $category->id }}" @selected(old('visitor_category_id', $visitor->visitor_category_id ?? $categories->firstWhere('is_default', true)?->id) == $category->id)>
-                                {{ $category->name }} @if ($category->name_ka) / {{ $category->name_ka }} @endif
+                                {{ $category->local_name }}
                             </option>
                         @endforeach
                     </select>

@@ -26,7 +26,7 @@
                     <th rowspan="2">{{ __('Ticket') }}</th>
                     @foreach ($ageGroups as $group)
                         @php $span = $columns->filter(fn ($c) => $c['group']->id === $group->id)->count(); @endphp
-                        <th colspan="{{ $span }}">{{ $group->name }} <small class="text-body-secondary">({{ $group->label() }})</small></th>
+                        <th colspan="{{ $span }}">{{ $group->local_name }} <small class="text-body-secondary">({{ $group->label() }})</small></th>
                     @endforeach
                 </tr>
                 <tr>
@@ -40,9 +40,9 @@
                     @foreach ($ticketTypes as $ticket)
                         <tr>
                             @if ($loop->first)
-                                <th rowspan="{{ $ticketTypes->count() }}" class="text-nowrap">{{ $slot->name }}<br><small class="text-body-secondary">{{ $slot->label() }}</small></th>
+                                <th rowspan="{{ $ticketTypes->count() }}" class="text-nowrap">{{ $slot->local_name }}<br><small class="text-body-secondary">{{ $slot->label() }}</small></th>
                             @endif
-                            <th class="text-start small">{{ $ticket->name }}</th>
+                            <th class="text-start small">{{ $ticket->local_name }}</th>
                             @foreach ($columns as $col)
                                 @php
                                     $key = "{$slot->id}-{$ticket->id}-{$col['group']->id}-".($col['category']?->id ?? 0);
@@ -80,12 +80,12 @@
                 </div>
                 <div class="col-md-4">
                     <select name="age_group_id" class="form-select">
-                        @foreach ($ageGroups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach
+                        @foreach ($ageGroups as $group)<option value="{{ $group->id }}">{{ $group->local_name }}</option>@endforeach
                     </select>
                 </div>
                 <div class="col-md-4">
                     <select name="visitor_category_id" class="form-select">
-                        @foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach
+                        @foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->local_name }}</option>@endforeach
                     </select>
                 </div>
                 <div class="col-md-4 d-grid"><button class="btn btn-outline-primary">{{ __('Add column') }}</button></div>
@@ -116,7 +116,7 @@
                             @if ($pct != 0)<span @class(['badge', 'text-bg-danger' => $pct > 0, 'text-bg-success' => $pct < 0])>{{ $pct > 0 ? '+' : '' }}{{ $pct }}%</span>@endif
                         </td>
                         <td class="small">
-                            {{ collect([$c->ageGroup?->name, $c->timeSlot?->name, $c->ticketType?->name, $c->category?->name])->filter()->join(', ') ?: __('everything') }}
+                            {{ collect([$c->ageGroup?->local_name, $c->timeSlot?->local_name, $c->ticketType?->local_name, $c->category?->local_name])->filter()->join(', ') ?: __('everything') }}
                         </td>
                         <td class="small">
                             {{ $c->weekdays ? collect($c->weekdays)->map(fn ($d) => $weekdayNames[$d] ?? $d)->join(', ') : __('every day') }}

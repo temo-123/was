@@ -13,17 +13,17 @@
                 <tr>
                     <th>{{ __('Permission') }}</th>
                     @foreach ($roles as $role)
-                        <th class="text-center small">{{ $role->display_name }}</th>
+                        <th class="text-center small">{{ __($role->display_name ?? '') }}</th>
                     @endforeach
                     <th class="text-center small">{{ __('Users directly') }}</th>
                 </tr>
                 </thead>
                 <tbody>
                 @foreach ($permissions as $group => $items)
-                    <tr class="table-secondary"><th colspan="{{ $roles->count() + 2 }}" class="text-uppercase small">{{ $group }}</th></tr>
+                    <tr class="table-secondary"><th colspan="{{ $roles->count() + 2 }}" class="text-uppercase small">{{ __($group) }}</th></tr>
                     @foreach ($items as $permission)
                         <tr>
-                            <td>{{ $permission->display_name }} <code class="small">{{ $permission->name }}</code></td>
+                            <td>{{ __($permission->display_name ?? '') }} <code class="small">{{ $permission->name }}</code></td>
                             @foreach ($roles as $role)
                                 <td class="text-center">
                                     @if ($role->name === config('permissions.super_admin_role') || $role->permissions->contains('id', $permission->id))

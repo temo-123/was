@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasLocalName;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['code', 'name', 'name_ka', 'is_default', 'sort_order', 'is_active'])]
 class VisitorCategory extends Model
 {
+    use HasLocalName;
+
     protected function casts(): array
     {
         return ['is_default' => 'boolean', 'is_active' => 'boolean'];

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import axios from 'axios';
+import { locale, t } from '../i18n';
 
 const props = defineProps({
     ticketTypes: { type: Array, required: true },
@@ -11,7 +12,7 @@ const props = defineProps({
     preselectVisitorId: { type: Number, default: null },
 });
 
-const paymentLabels = { cash: 'Cash', card: 'Card', transfer: 'Bank transfer' };
+const paymentLabels = { cash: t('Cash'), card: t('Card'), transfer: t('Bank transfer') };
 const defaultCategory = props.categories.find((c) => c.is_default) ?? props.categories[0];
 
 // --- state ------------------------------------------------------------------------------
@@ -61,32 +62,32 @@ const now = new Date();
 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 function birthDateError(value) {
-    if (!value) return 'Date of birth is required.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) return 'Enter a valid date.';
-    if (value >= today) return 'The date of birth must be in the past.';
-    if (Number(value.slice(0, 4)) < 1900) return 'Check the year.';
+    if (!value) return t('Date of birth is required.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) return t('Enter a valid date.');
+    if (value >= today) return t('The date of birth must be in the past.');
+    if (Number(value.slice(0, 4)) < 1900) return t('Check the year.');
     return null;
 }
 
 function nameError(value, label) {
     const v = value.trim();
-    if (!v) return `${label} is required.`;
-    if (v.length < 2) return `${label} is too short.`;
-    if (!RULES.name.test(v)) return `${label} may contain only letters, spaces and dashes.`;
+    if (!v) return t(':field is required.', { field: label });
+    if (v.length < 2) return t(':field is too short.', { field: label });
+    if (!RULES.name.test(v)) return t(':field may contain only letters, spaces and dashes.', { field: label });
     return null;
 }
 
 const clientErrors = computed(() => {
     const v = newVisitor;
     const e = {
-        first_name: nameError(v.first_name, 'First name'),
-        last_name: nameError(v.last_name, 'Last name'),
+        first_name: nameError(v.first_name, t('First name')),
+        last_name: nameError(v.last_name, t('Last name')),
         personal_id: !v.personal_id
-            ? 'ID number is required.'
-            : !RULES.personalId.test(v.personal_id) ? `ID number must be exactly 11 digits (now ${v.personal_id.length}).` : null,
+            ? t('ID number is required.')
+            : !RULES.personalId.test(v.personal_id) ? t('ID number must be exactly 11 digits (now :count).', { count: v.personal_id.length }) : null,
         birth_date: birthDateError(v.birth_date),
-        phone: !v.phone ? 'Phone is required.' : !RULES.phone.test(v.phone) ? 'Phone must be 9–15 digits, e.g. 599123456.' : null,
-        email: v.email && !RULES.email.test(v.email.trim()) ? 'Enter a real email address, e.g. name@gmail.com.' : null,
+        phone: !v.phone ? t('Phone is required.') : !RULES.phone.test(v.phone) ? t('Phone must be 9–15 digits, e.g. 599123456.') : null,
+        email: v.email && !RULES.email.test(v.email.trim()) ? t('Enter a real email address, e.g. name@gmail.com.') : null,
     };
     return Object.fromEntries(Object.entries(e).filter(([, message]) => message));
 });
@@ -234,7 +235,7 @@ async function loadQuote() {
 
 watch(() => [entry.ticket_type_id, entry.visitor_category_id, newVisitor.birth_date], refreshQuote);
 
-const selectedTicket = computed(() => props.ticketTypes.find((t) => t.id === entry.ticket_type_id));
+const selectedTicket = computed(() => props.ticketTypes.find((ticket) => ticket.id === entry.ticket_type_id));
 const coveredBySubscription = computed(() => !!quote.value?.subscription && entry.use_subscription && !selectedTicket.value?.duration_days);
 
 const amountToPay = computed(() => {
@@ -258,11 +259,11 @@ watch(() => entry.terms_accepted, () => clearServerError('terms_accepted'));
 function checkNewVisitor() {
     submitAttempted.value = true;
     const problems = [];
-    if (!newVisitorValid.value) problems.push('Please fix the highlighted fields.');
-    if (duplicate.value) problems.push('A visitor with this ID number already exists — select them instead.');
+    if (!newVisitorValid.value) problems.push(t('Please fix the highlighted fields.'));
+    if (duplicate.value) problems.push(t('A visitor with this ID number already exists — select them instead.'));
     if (!entry.terms_accepted) {
-        errors.value = { ...errors.value, terms_accepted: ['The visitor must accept the gym terms.'] };
-        problems.push('The visitor must accept the gym terms.');
+        errors.value = { ...errors.value, terms_accepted: [t('The visitor must accept the gym terms.')] };
+        problems.push(t('The visitor must accept the gym terms.'));
     }
     errorMessage.value = problems.join(' ');
 
@@ -282,7 +283,7 @@ async function saveVisitor() {
             terms_accepted: true,
         });
         selectVisitor(data.data);
-        success.value = { message: `Visitor ${data.data.full_name} saved.`, visit: null };
+        success.value = { message: t('Visitor :name saved.', { name: data.data.full_name }), visit: null };
     } catch (e) {
         showError(e);
     } finally {
@@ -314,8 +315,8 @@ async function submit() {
 
     if (mode.value === 'new' && !checkNewVisitor()) return;
     if (termsMissing.value) {
-        errors.value = { ...errors.value, terms_accepted: ['The visitor must accept the gym terms.'] };
-        errorMessage.value = 'The visitor must accept the gym terms.';
+        errors.value = { ...errors.value, terms_accepted: [t('The visitor must accept the gym terms.')] };
+        errorMessage.value = t('The visitor must accept the gym terms.');
         return;
     }
 
@@ -366,23 +367,26 @@ function showError(e) {
         const raw = e.response.data.errors ?? {};
         // "visitor.first_name" -> "first_name" so the new-visitor form can show it.
         errors.value = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k.replace(/^visitor\./, ''), v]));
-        errorMessage.value = Object.keys(errors.value).length > 1 ? 'Please fix the highlighted fields.' : e.response.data.message;
+        errorMessage.value = Object.keys(errors.value).length > 1 ? t('Please fix the highlighted fields.') : e.response.data.message;
     } else if (e.response?.status === 419 || e.response?.status === 401) {
-        errorMessage.value = 'Your session has expired. Please reload the page and log in again.';
+        errorMessage.value = t('Your session has expired. Please reload the page and log in again.');
     } else if (e.response?.status === 403) {
-        errorMessage.value = 'You do not have permission for this action.';
+        errorMessage.value = t('You do not have permission for this action.');
     } else {
-        errorMessage.value = e.response?.data?.message || e.message || 'Something went wrong.';
+        errorMessage.value = e.response?.data?.message || e.message || t('Something went wrong.');
     }
 }
 
 // --- helpers ----------------------------------------------------------------------------
+const dateLocale = locale === 'ka' ? 'ka-GE' : 'en-GB';
 const money = (v) => `${Number(v ?? 0).toFixed(2).replace(/\.00$/, '')} ₾`;
-const fmtDateTime = (v) => (v ? new Date(v).toLocaleString('ka-GE', { dateStyle: 'short', timeStyle: 'short' }) : '—');
-const fmtDate = (v) => (v ? new Date(v).toLocaleDateString('ka-GE') : '—');
+const fmtDateTime = (v) => (v ? new Date(v).toLocaleString(dateLocale, { dateStyle: 'short', timeStyle: 'short' }) : '—');
+const fmtDate = (v) => (v ? new Date(v).toLocaleDateString(dateLocale) : '—');
 const isToday = (v) => v && new Date(v).toDateString() === new Date().toDateString();
-const ticketLabel = (t) => (t.name_ka ? `${t.name} / ${t.name_ka}` : t.name);
-const categoryLabel = (c) => (c.name_ka ? `${c.name} / ${c.name_ka}` : c.name);
+// Price list names: Georgian from name_ka when the site is in Georgian.
+const localName = (item) => (item ? (locale === 'ka' && item.name_ka ? item.name_ka : item.name) : null);
+const ticketLabel = localName;
+const categoryLabel = localName;
 const fieldError = (name) => errors.value[name]?.[0]
     ?? (mode.value === 'new' && (touched[name] || submitAttempted.value) ? clientErrors.value[name] : undefined);
 </script>
@@ -396,17 +400,17 @@ const fieldError = (name) => errors.value[name]?.[0]
                     <i class="bi bi-check-circle-fill me-2"></i>{{ success.message }}
                     <template v-if="success.visit">
                         <strong class="ms-2">{{ money(success.visit.price) }}</strong>
-                        <span v-if="success.visit.payment_method === 'subscription'" class="badge text-bg-info ms-2">subscription</span>
+                        <span v-if="success.visit.payment_method === 'subscription'" class="badge text-bg-info ms-2">{{ t('subscription') }}</span>
                     </template>
-                    <span v-else class="ms-1">Now choose the ticket on the right and register the entrance.</span>
+                    <span v-else class="ms-1">{{ t('Now choose the ticket on the right and register the entrance.') }}</span>
                 </div>
-                <a v-if="success.visit" :href="urls.visitor.replace('__ID__', success.visit.visitor_id)" class="btn btn-sm btn-outline-success">Open visitor</a>
+                <a v-if="success.visit" :href="urls.visitor.replace('__ID__', success.visit.visitor_id)" class="btn btn-sm btn-outline-success">{{ t('Open visitor') }}</a>
             </div>
             <div v-if="errorMessage && mode === 'search'" class="alert alert-danger">{{ errorMessage }}</div>
 
             <!-- Search -->
             <div v-if="mode === 'search'" class="card card-primary card-outline">
-                <div class="card-header"><h3 class="card-title"><i class="bi bi-search me-1"></i> Find visitor</h3></div>
+                <div class="card-header"><h3 class="card-title"><i class="bi bi-search me-1"></i> {{ t('Find visitor') }}</h3></div>
                 <div class="card-body">
                     <div class="input-group input-group-lg mb-3">
                         <span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
@@ -415,7 +419,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                             v-model="query"
                             type="search"
                             class="form-control"
-                            placeholder="Name, surname, ID number or phone…"
+                            :placeholder="t('Name, surname, ID number or phone…')"
                             autocomplete="off"
                             @keydown.enter.prevent="results.length === 1 && selectVisitor(results[0])"
                         />
@@ -434,26 +438,26 @@ const fieldError = (name) => errors.value[name]?.[0]
                                 <div>
                                     <div class="fw-semibold">{{ v.full_name }}</div>
                                     <small class="text-body-secondary">
-                                        ID {{ v.personal_id }} · {{ v.age }} y · {{ v.phone }}
+                                        {{ t('ID') }} {{ v.personal_id }} · {{ t(':age y', { age: v.age }) }} · {{ v.phone }}
                                     </small>
                                 </div>
                                 <div class="text-end">
                                     <span v-if="v.active_subscriptions?.length" class="badge text-bg-info d-block mb-1">
-                                        <i class="bi bi-card-checklist"></i> subscription
+                                        <i class="bi bi-card-checklist"></i> {{ t('subscription') }}
                                     </span>
-                                    <span v-if="!v.terms_accepted" class="badge text-bg-warning d-block mb-1">no terms</span>
+                                    <span v-if="!v.terms_accepted" class="badge text-bg-warning d-block mb-1">{{ t('no terms') }}</span>
                                     <small class="text-body-secondary" :class="{ 'text-danger fw-semibold': isToday(v.last_visit_at) }">
-                                        last: {{ fmtDateTime(v.last_visit_at) }}
+                                        {{ t('last: :date', { date: fmtDateTime(v.last_visit_at) }) }}
                                     </small>
                                 </div>
                             </div>
                         </button>
                     </div>
 
-                    <p v-else-if="searched && !searching" class="text-body-secondary">No visitors found for “{{ query }}”.</p>
+                    <p v-else-if="searched && !searching" class="text-body-secondary">{{ t('No visitors found for “:query”.', { query }) }}</p>
 
                     <button v-if="can.createVisitor" type="button" class="btn btn-outline-primary" @click="startNewVisitor">
-                        <i class="bi bi-person-plus"></i> New visitor
+                        <i class="bi bi-person-plus"></i> {{ t('New visitor') }}
                     </button>
                 </div>
             </div>
@@ -463,88 +467,88 @@ const fieldError = (name) => errors.value[name]?.[0]
                 <div class="card-header d-flex align-items-center">
                     <h3 class="card-title mb-0"><i class="bi bi-person-check me-1"></i> {{ visitor.full_name }}</h3>
                     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" @click="backToSearch">
-                        <i class="bi bi-arrow-left"></i> Change
+                        <i class="bi bi-arrow-left"></i> {{ t('Change') }}
                     </button>
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-4">ID number</dt><dd class="col-sm-8">{{ visitor.personal_id }}</dd>
-                        <dt class="col-sm-4">Date of birth</dt><dd class="col-sm-8">{{ fmtDate(visitor.birth_date) }} ({{ visitor.age }} years)</dd>
-                        <dt class="col-sm-4">Phone</dt><dd class="col-sm-8">{{ visitor.phone }}</dd>
-                        <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ visitor.email || '—' }}</dd>
-                        <dt class="col-sm-4">Visits</dt><dd class="col-sm-8">{{ visitor.visits_count ?? 0 }} · last {{ fmtDateTime(quote?.last_visit_at ?? visitor.last_visit_at) }}</dd>
+                        <dt class="col-sm-4">{{ t('ID number') }}</dt><dd class="col-sm-8">{{ visitor.personal_id }}</dd>
+                        <dt class="col-sm-4">{{ t('Date of birth') }}</dt><dd class="col-sm-8">{{ fmtDate(visitor.birth_date) }} ({{ t(':age years', { age: visitor.age }) }})</dd>
+                        <dt class="col-sm-4">{{ t('Phone') }}</dt><dd class="col-sm-8">{{ visitor.phone }}</dd>
+                        <dt class="col-sm-4">{{ t('Email') }}</dt><dd class="col-sm-8">{{ visitor.email || '—' }}</dd>
+                        <dt class="col-sm-4">{{ t('Visits') }}</dt><dd class="col-sm-8">{{ visitor.visits_count ?? 0 }} · {{ t('last: :date', { date: fmtDateTime(quote?.last_visit_at ?? visitor.last_visit_at) }) }}</dd>
                     </dl>
                     <div v-if="visitor.comment" class="alert alert-warning mt-3 mb-0"><i class="bi bi-chat-left-text me-1"></i>{{ visitor.comment }}</div>
                     <div v-if="isToday(quote?.last_visit_at)" class="alert alert-info mt-3 mb-0">
-                        <i class="bi bi-info-circle me-1"></i> This visitor has already entered today.
+                        <i class="bi bi-info-circle me-1"></i> {{ t('This visitor has already entered today.') }}
                     </div>
-                    <a :href="urls.visitor.replace('__ID__', visitor.id)" target="_blank" class="btn btn-link px-0 mt-2">Open profile <i class="bi bi-box-arrow-up-right"></i></a>
+                    <a :href="urls.visitor.replace('__ID__', visitor.id)" target="_blank" class="btn btn-link px-0 mt-2">{{ t('Open profile') }} <i class="bi bi-box-arrow-up-right"></i></a>
                 </div>
             </div>
 
             <!-- New visitor -->
             <div v-else-if="mode === 'new'" class="card card-warning card-outline">
                 <div class="card-header d-flex align-items-center">
-                    <h3 class="card-title mb-0"><i class="bi bi-person-plus me-1"></i> New visitor</h3>
+                    <h3 class="card-title mb-0"><i class="bi bi-person-plus me-1"></i> {{ t('New visitor') }}</h3>
                     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" @click="backToSearch">
-                        <i class="bi bi-arrow-left"></i> Back to search
+                        <i class="bi bi-arrow-left"></i> {{ t('Back to search') }}
                     </button>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-first">First name <span class="text-danger">*</span></label>
+                            <label class="form-label" for="nv-first">{{ t('First name') }} <span class="text-danger">*</span></label>
                             <input id="nv-first" v-model="newVisitor.first_name" class="form-control" :class="fieldState('first_name')"
                                    maxlength="100" autocomplete="off" @blur="touched.first_name = true" @input="clearServerError('first_name')" />
                             <div class="invalid-feedback">{{ fieldError('first_name') }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-last">Last name <span class="text-danger">*</span></label>
+                            <label class="form-label" for="nv-last">{{ t('Last name') }} <span class="text-danger">*</span></label>
                             <input id="nv-last" v-model="newVisitor.last_name" class="form-control" :class="fieldState('last_name')"
                                    maxlength="100" autocomplete="off" @blur="touched.last_name = true" @input="clearServerError('last_name')" />
                             <div class="invalid-feedback">{{ fieldError('last_name') }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-pid">ID number <span class="text-danger">*</span> <small class="text-body-secondary">(11 digits)</small></label>
+                            <label class="form-label" for="nv-pid">{{ t('ID number') }} <span class="text-danger">*</span> <small class="text-body-secondary">({{ t('11 digits') }})</small></label>
                             <input id="nv-pid" :value="newVisitor.personal_id" class="form-control font-monospace" :class="fieldState('personal_id')"
                                    inputmode="numeric" maxlength="11" placeholder="01001012345" autocomplete="off"
                                    @input="setDigits('personal_id', 11, $event)" @blur="touched.personal_id = true" />
                             <div class="invalid-feedback">{{ fieldError('personal_id') }}</div>
                             <div v-if="duplicate" class="alert alert-warning py-2 mt-2 mb-0 small">
                                 <i class="bi bi-exclamation-triangle me-1"></i>
-                                Already registered: <strong>{{ duplicate.full_name }}</strong> ({{ duplicate.age }} y)
-                                <button type="button" class="btn btn-sm btn-warning ms-2" @click="selectVisitor(duplicate)">Use this visitor</button>
+                                {{ t('Already registered:') }} <strong>{{ duplicate.full_name }}</strong> ({{ t(':age y', { age: duplicate.age }) }})
+                                <button type="button" class="btn btn-sm btn-warning ms-2" @click="selectVisitor(duplicate)">{{ t('Use this visitor') }}</button>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-birth">Date of birth <span class="text-danger">*</span></label>
+                            <label class="form-label" for="nv-birth">{{ t('Date of birth') }} <span class="text-danger">*</span></label>
                             <input id="nv-birth" v-model="newVisitor.birth_date" type="date" class="form-control" :class="fieldState('birth_date')"
                                    min="1900-01-01" :max="today" @blur="touched.birth_date = true" @change="touched.birth_date = true; clearServerError('birth_date')" />
                             <div class="invalid-feedback">{{ fieldError('birth_date') }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-phone">Phone <span class="text-danger">*</span> <small class="text-body-secondary">(digits only)</small></label>
+                            <label class="form-label" for="nv-phone">{{ t('Phone') }} <span class="text-danger">*</span> <small class="text-body-secondary">({{ t('digits only') }})</small></label>
                             <input id="nv-phone" :value="newVisitor.phone" type="tel" class="form-control font-monospace" :class="fieldState('phone')"
                                    inputmode="numeric" maxlength="15" placeholder="599123456" autocomplete="off"
                                    @input="setDigits('phone', 15, $event)" @blur="touched.phone = true" />
                             <div class="invalid-feedback">{{ fieldError('phone') }}</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label" for="nv-email">Email <small class="text-body-secondary">(optional)</small></label>
+                            <label class="form-label" for="nv-email">{{ t('Email') }} <small class="text-body-secondary">({{ t('optional') }})</small></label>
                             <input id="nv-email" v-model.trim="newVisitor.email" type="email" class="form-control" :class="fieldState('email')"
                                    maxlength="255" placeholder="name@gmail.com" autocomplete="off"
                                    @blur="touched.email = true" @input="clearServerError('email')" />
                             <div class="invalid-feedback">{{ fieldError('email') }}</div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label" for="nv-comment">Comment</label>
-                            <textarea id="nv-comment" v-model="newVisitor.comment" rows="2" maxlength="2000" class="form-control" placeholder="Health notes, experience, anything staff should know…"></textarea>
+                            <label class="form-label" for="nv-comment">{{ t('Comment') }}</label>
+                            <textarea id="nv-comment" v-model="newVisitor.comment" rows="2" maxlength="2000" class="form-control" :placeholder="t('Health notes, experience, anything staff should know…')"></textarea>
                         </div>
                         <div class="col-12">
                             <div class="form-check">
                                 <input id="terms-new" v-model="entry.terms_accepted" class="form-check-input" type="checkbox" :class="{ 'is-invalid': fieldError('terms_accepted') }" />
                                 <label for="terms-new" class="form-check-label">
-                                    Visitor has read and signed the <a :href="urls.terms" target="_blank">gym terms &amp; safety rules</a> <span class="text-danger">*</span>
+                                    {{ t('Visitor has read and signed the') }} <a :href="urls.terms" target="_blank">{{ t('gym terms & safety rules') }}</a> <span class="text-danger">*</span>
                                 </label>
                                 <div class="invalid-feedback">{{ fieldError('terms_accepted') }}</div>
                             </div>
@@ -556,24 +560,24 @@ const fieldError = (name) => errors.value[name]?.[0]
                     <div class="d-flex flex-wrap gap-2">
                         <button type="button" class="btn btn-primary" :disabled="submitting" @click="saveVisitor">
                             <span v-if="submitting" class="spinner-border spinner-border-sm me-1"></span>
-                            <i v-else class="bi bi-save me-1"></i> Save visitor
+                            <i v-else class="bi bi-save me-1"></i> {{ t('Save visitor') }}
                         </button>
                         <button type="button" class="btn btn-success" :disabled="submitting" @click="submit">
-                            <i class="bi bi-door-open me-1"></i> Save &amp; register entrance
+                            <i class="bi bi-door-open me-1"></i> {{ t('Save & register entrance') }}
                             <template v-if="amountToPay !== null"> · {{ money(amountToPay) }}</template>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary ms-auto" :disabled="submitting" @click="backToSearch">Cancel</button>
+                        <button type="button" class="btn btn-outline-secondary ms-auto" :disabled="submitting" @click="backToSearch">{{ t('Cancel') }}</button>
                     </div>
                 </div>
             </div>
 
             <!-- Entrances registered from this screen -->
             <div v-if="recent.length" class="card mt-3">
-                <div class="card-header"><h3 class="card-title">Registered just now</h3></div>
+                <div class="card-header"><h3 class="card-title">{{ t('Registered just now') }}</h3></div>
                 <ul class="list-group list-group-flush">
                     <li v-for="r in recent" :key="r.id" class="list-group-item d-flex justify-content-between">
                         <span>{{ fmtDateTime(r.entered_at) }} — {{ r.visitor.full_name }}</span>
-                        <span>{{ r.ticket_type?.name }} · <strong>{{ money(r.price) }}</strong></span>
+                        <span>{{ localName(r.ticket_type) }} · <strong>{{ money(r.price) }}</strong></span>
                     </li>
                 </ul>
             </div>
@@ -582,19 +586,19 @@ const fieldError = (name) => errors.value[name]?.[0]
         <!-- ============ RIGHT: ticket + price ============ -->
         <div class="col-lg-5">
             <div class="card card-outline card-secondary" :class="{ 'opacity-50': mode === 'search' }">
-                <div class="card-header"><h3 class="card-title"><i class="bi bi-ticket-perforated me-1"></i> Entrance</h3></div>
+                <div class="card-header"><h3 class="card-title"><i class="bi bi-ticket-perforated me-1"></i> {{ t('Entrance') }}</h3></div>
                 <div class="card-body">
                     <fieldset :disabled="mode === 'search'">
-                        <label class="form-label">Ticket</label>
+                        <label class="form-label">{{ t('Ticket') }}</label>
                         <div class="btn-group w-100 mb-3" role="group">
-                            <template v-for="t in ticketTypes" :key="t.id">
-                                <input :id="`ticket-${t.id}`" v-model="entry.ticket_type_id" type="radio" class="btn-check" :value="t.id" />
-                                <label :for="`ticket-${t.id}`" class="btn btn-outline-primary">{{ ticketLabel(t) }}</label>
+                            <template v-for="ticket in ticketTypes" :key="ticket.id">
+                                <input :id="`ticket-${ticket.id}`" v-model="entry.ticket_type_id" type="radio" class="btn-check" :value="ticket.id" />
+                                <label :for="`ticket-${ticket.id}`" class="btn btn-outline-primary">{{ ticketLabel(ticket) }}</label>
                             </template>
                         </div>
                         <div v-if="fieldError('ticket_type_id')" class="text-danger small mb-2">{{ fieldError('ticket_type_id') }}</div>
 
-                        <label class="form-label">Category</label>
+                        <label class="form-label">{{ t('Category') }}</label>
                         <select v-model="entry.visitor_category_id" class="form-select mb-3">
                             <option v-for="c in categories" :key="c.id" :value="c.id">{{ categoryLabel(c) }}</option>
                         </select>
@@ -603,21 +607,20 @@ const fieldError = (name) => errors.value[name]?.[0]
                         <div class="border rounded p-3 mb-3 bg-body-tertiary">
                             <div v-if="quoting && !quote" class="text-center py-3"><span class="spinner-border"></span></div>
                             <div v-else-if="!quote" class="text-body-secondary">
-                                {{ mode === 'new' ? 'Enter the date of birth to calculate the price.' : 'Select a visitor.' }}
+                                {{ mode === 'new' ? t('Enter the date of birth to calculate the price.') : t('Select a visitor.') }}
                             </div>
                             <template v-else>
                                 <div class="d-flex justify-content-between small text-body-secondary mb-1">
-                                    <span>Age {{ age }} · {{ quote.quote.age_group?.name ?? 'no age group' }}</span>
-                                    <span>{{ quote.quote.time_slot?.label ?? 'outside working hours' }}</span>
+                                    <span>{{ t('Age :age', { age }) }} · {{ localName(quote.quote.age_group) ?? t('no age group') }}</span>
+                                    <span>{{ quote.quote.time_slot?.label ?? t('outside working hours') }}</span>
                                 </div>
 
                                 <div v-if="quote.subscription" class="alert alert-info py-2 my-2">
                                     <div class="form-check form-switch mb-0">
                                         <input id="use-sub" v-model="entry.use_subscription" class="form-check-input" type="checkbox" :disabled="!!selectedTicket?.duration_days" />
                                         <label for="use-sub" class="form-check-label">
-                                            Use subscription ({{ quote.subscription.ticket_type?.name }}, {{ quote.subscription.time_slot?.label }})
-                                            until {{ fmtDate(quote.subscription.ends_on) }}
-                                            <span v-if="quote.subscription.visits_limit"> · {{ quote.subscription.visits_used }}/{{ quote.subscription.visits_limit }} used</span>
+                                            {{ t('Use subscription (:ticket, :time) until :date', { ticket: localName(quote.subscription.ticket_type), time: quote.subscription.time_slot?.label, date: fmtDate(quote.subscription.ends_on) }) }}
+                                            <span v-if="quote.subscription.visits_limit"> · {{ t(':used/:limit used', { used: quote.subscription.visits_used, limit: quote.subscription.visits_limit }) }}</span>
                                         </label>
                                     </div>
                                 </div>
@@ -628,7 +631,7 @@ const fieldError = (name) => errors.value[name]?.[0]
 
                                 <div class="d-flex align-items-end justify-content-between mt-2">
                                     <div class="small text-body-secondary">
-                                        <template v-if="coveredBySubscription">Covered by subscription</template>
+                                        <template v-if="coveredBySubscription">{{ t('Covered by subscription') }}</template>
                                         <template v-else-if="quote.quote.available">
                                             {{ money(quote.quote.base_price) }}
                                             <span v-if="quote.quote.coefficient !== 1"> × {{ quote.quote.coefficient }}</span>
@@ -643,7 +646,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                         </div>
 
                         <template v-if="!coveredBySubscription && amountToPay !== 0">
-                            <label class="form-label">Payment</label>
+                            <label class="form-label">{{ t('Payment') }}</label>
                             <div class="btn-group w-100 mb-3" role="group">
                                 <template v-for="m in paymentMethods" :key="m">
                                     <input :id="`pay-${m}`" v-model="entry.payment_method" type="radio" class="btn-check" :value="m" />
@@ -653,7 +656,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                         </template>
 
                         <div v-if="can.overridePrice && !coveredBySubscription" class="mb-3">
-                            <label class="form-label">Manual price <small class="text-body-secondary">(leave empty to use the calculated one)</small></label>
+                            <label class="form-label">{{ t('Manual price') }} <small class="text-body-secondary">({{ t('leave empty to use the calculated one') }})</small></label>
                             <div class="input-group">
                                 <input v-model="entry.price_override" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': fieldError('price_override') }" />
                                 <span class="input-group-text">₾</span>
@@ -662,14 +665,14 @@ const fieldError = (name) => errors.value[name]?.[0]
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Note for this visit</label>
+                            <label class="form-label">{{ t('Note for this visit') }}</label>
                             <input v-model="entry.comment" class="form-control" />
                         </div>
 
                         <div v-if="mode === 'selected' && visitor && !visitor.terms_accepted" class="form-check mb-3">
                             <input id="terms" v-model="entry.terms_accepted" class="form-check-input" type="checkbox" :class="{ 'is-invalid': fieldError('terms_accepted') }" />
                             <label for="terms" class="form-check-label">
-                                Visitor has read and signed the <a :href="urls.terms" target="_blank">gym terms &amp; safety rules</a>
+                                {{ t('Visitor has read and signed the') }} <a :href="urls.terms" target="_blank">{{ t('gym terms & safety rules') }}</a>
                             </label>
                             <div class="invalid-feedback">{{ fieldError('terms_accepted') }}</div>
                         </div>
@@ -679,7 +682,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                         <button v-if="mode !== 'new'" type="button" class="btn btn-success btn-lg w-100" :disabled="!canSubmit" @click="submit">
                             <span v-if="submitting" class="spinner-border spinner-border-sm me-1"></span>
                             <i v-else class="bi bi-door-open me-1"></i>
-                            Register entrance
+                            {{ t('Register entrance') }}
                             <template v-if="amountToPay !== null"> · {{ money(amountToPay) }}</template>
                         </button>
                     </fieldset>

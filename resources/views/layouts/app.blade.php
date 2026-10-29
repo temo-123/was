@@ -26,6 +26,7 @@
                 <li class="nav-item"><a class="nav-link" href="{{ route('terms') }}">{{ __('Gym rules') }}</a></li>
             </ul>
             <ul class="navbar-nav">
+                @include('partials.locale-switcher')
                 @auth
                     @if (auth()->user()->canAccessAdmin())
                         <li class="nav-item"><a class="nav-link" href="{{ route('admin.dashboard') }}"><i class="bi bi-speedometer2"></i> {{ __('Admin') }}</a></li>

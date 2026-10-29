@@ -18,9 +18,9 @@
                 @foreach ($roles as $role)
                     <tr>
                         <td>
-                            <strong>{{ $role->display_name }}</strong>
+                            <strong>{{ __($role->display_name ?? '') }}</strong>
                             @if ($role->is_system)<span class="badge text-bg-light border">{{ __('system') }}</span>@endif
-                            <div class="small text-body-secondary">{{ $role->description }}</div>
+                            <div class="small text-body-secondary">{{ __($role->description ?? '') }}</div>
                         </td>
                         <td><code>{{ $role->name }}</code></td>
                         <td class="text-center"><a href="{{ route('admin.users.index', ['role' => $role->name]) }}">{{ $role->users_count }}</a></td>

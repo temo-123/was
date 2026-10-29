@@ -90,8 +90,8 @@
                                 <input class="form-check-input" type="checkbox" name="roles[]" value="{{ $role->id }}" id="role{{ $role->id }}"
                                        @checked(in_array($role->id, $userRoleIds, true)) @disabled($locked)>
                                 <label class="form-check-label" for="role{{ $role->id }}">
-                                    <strong>{{ $role->display_name }}</strong>
-                                    <small class="text-body-secondary">{{ $role->description }}</small>
+                                    <strong>{{ __($role->display_name ?? '') }}</strong>
+                                    <small class="text-body-secondary">{{ __($role->description ?? '') }}</small>
                                 </label>
                             </div>
                         @endforeach
@@ -107,12 +107,12 @@
                         <div class="row">
                             @foreach ($permissions as $group => $items)
                                 <div class="col-md-6 mb-3">
-                                    <div class="fw-semibold text-uppercase small text-body-secondary mb-1">{{ $group }}</div>
+                                    <div class="fw-semibold text-uppercase small text-body-secondary mb-1">{{ __($group) }}</div>
                                     @foreach ($items as $permission)
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" name="permissions[]" value="{{ $permission->id }}" id="perm{{ $permission->id }}"
                                                    @checked(in_array($permission->id, $userPermIds, true))>
-                                            <label class="form-check-label small" for="perm{{ $permission->id }}" title="{{ $permission->name }}">{{ $permission->display_name }}</label>
+                                            <label class="form-check-label small" for="perm{{ $permission->id }}" title="{{ $permission->name }}">{{ __($permission->display_name ?? '') }}</label>
                                         </div>
                                     @endforeach
                                 </div>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,7 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
 
         $middleware->alias(['active' => EnsureUserIsActive::class]);
-        $middleware->web(append: [EnsureUserIsActive::class]);
+        $middleware->web(append: [SetLocale::class, EnsureUserIsActive::class]);
+        $middleware->api(append: [SetLocale::class]); // Vue → /api: validation messages in the chosen language
+        $middleware->encryptCookies(except: [SetLocale::COOKIE]); // just "ka" / "en", readable by the API too
 
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->canAccessAdmin()

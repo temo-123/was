@@ -19,7 +19,7 @@
                     <select name="category" class="form-select">
                         <option value="">{{ __('All categories') }}</option>
                         @foreach ($categories as $category)
-                            <option value="{{ $category->id }}" @selected(request('category') == $category->id)>{{ $category->name }}</option>
+                            <option value="{{ $category->id }}" @selected(request('category') == $category->id)>{{ $category->local_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -59,7 +59,7 @@
                         <td>{{ $visitor->personal_id }}</td>
                         <td>{{ $visitor->ageAt() }}</td>
                         <td>{{ $visitor->phone }}</td>
-                        <td>{{ $visitor->category?->name }}</td>
+                        <td>{{ $visitor->category?->local_name }}</td>
                         <td class="text-center">{{ $visitor->visits_count }}</td>
                         <td>{{ $visitor->visits_max_entered_at ? \Illuminate\Support\Carbon::parse($visitor->visits_max_entered_at)->format('d.m.Y H:i') : '—' }}</td>
                         <td class="text-end text-nowrap">

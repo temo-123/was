@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasLocalName;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['code', 'name', 'name_ka', 'duration_days', 'visits_limit', 'sort_order', 'is_active'])]
 class TicketType extends Model
 {
+    use HasLocalName;
+
     protected function casts(): array
     {
         return ['duration_days' => 'integer', 'visits_limit' => 'integer', 'is_active' => 'boolean'];

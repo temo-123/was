@@ -38,13 +38,13 @@
                         <div class="row">
                             @foreach ($permissions as $group => $items)
                                 <div class="col-md-6 mb-3">
-                                    <div class="fw-semibold text-uppercase small text-body-secondary mb-1">{{ $group }}</div>
+                                    <div class="fw-semibold text-uppercase small text-body-secondary mb-1">{{ __($group) }}</div>
                                     @foreach ($items as $permission)
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" name="permissions[]" value="{{ $permission->id }}" id="perm{{ $permission->id }}"
                                                    @checked(in_array($permission->id, $selected, true))>
                                             <label class="form-check-label" for="perm{{ $permission->id }}">
-                                                {{ $permission->display_name }} <code class="small">{{ $permission->name }}</code>
+                                                {{ __($permission->display_name ?? '') }} <code class="small">{{ $permission->name }}</code>
                                             </label>
                                         </div>
                                     @endforeach

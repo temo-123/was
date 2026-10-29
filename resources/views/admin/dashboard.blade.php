@@ -45,7 +45,7 @@
                             <tr>
                                 <td>{{ $visit->entered_at->format('H:i') }}</td>
                                 <td><a href="{{ route('admin.visitors.show', $visit->visitor_id) }}">{{ $visit->visitor?->full_name }}</a></td>
-                                <td>{{ $visit->ticketType?->name }} <small class="text-body-secondary">{{ $visit->timeSlot?->label() }}</small></td>
+                                <td>{{ $visit->ticketType?->local_name }} <small class="text-body-secondary">{{ $visit->timeSlot?->label() }}</small></td>
                                 <td class="text-end">@include('admin.partials.visit-price', ['visit' => $visit])</td>
                             </tr>
                         @empty
@@ -78,7 +78,7 @@
                 <ul class="list-group list-group-flush">
                     @foreach ($bySlot as $slot)
                         <li @class(['list-group-item d-flex justify-content-between', 'active' => $currentSlot?->id === $slot->id])>
-                            <span>{{ $slot->name }} <small>({{ $slot->label() }})</small></span>
+                            <span>{{ $slot->local_name }} <small>({{ $slot->label() }})</small></span>
                             <strong>{{ $slot->visits_count }}</strong>
                         </li>
                     @endforeach

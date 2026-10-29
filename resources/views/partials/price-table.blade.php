@@ -22,7 +22,7 @@
         <tr>
             @foreach ($columns as [$group, $cat])
                 @if ($cat && $columns->filter(fn ($c) => $c[0]->id == $group->id)->count() > 1)
-                    <th class="small fw-normal">{{ $cat->name_ka ?: $cat->name }}</th>
+                    <th class="small fw-normal">{{ $cat->local_name }}</th>
                 @endif
             @endforeach
         </tr>
@@ -34,7 +34,7 @@
                     @if ($loop->first)
                         <th rowspan="{{ $ticketTypes->count() }}" class="text-nowrap">{{ $slot->label() }}</th>
                     @endif
-                    <th class="small fw-normal text-start">{{ $ticket->name_ka ?: $ticket->name }}</th>
+                    <th class="small fw-normal text-start">{{ $ticket->local_name }}</th>
                     @foreach ($columns as [$group, $cat])
                         @php $rule = $find($slot, $ticket, $group, $cat); @endphp
                         <td>{!! $rule ? '<strong>'.rtrim(rtrim(number_format($rule->price, 2), '0'), '.').' ₾</strong>' : '<span class="text-body-secondary">—</span>' !!}</td>

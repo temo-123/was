@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasLocalName;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['code', 'name', 'name_ka', 'start_time', 'end_time', 'sort_order', 'is_active'])]
 class TimeSlot extends Model
 {
+    use HasLocalName;
+
     protected function casts(): array
     {
         return ['is_active' => 'boolean'];

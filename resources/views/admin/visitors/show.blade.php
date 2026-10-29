@@ -28,7 +28,7 @@
                         <dt class="col-5">{{ __('Date of birth') }}</dt><dd class="col-7">{{ $visitor->birth_date->format('d.m.Y') }} ({{ $visitor->ageAt() }})</dd>
                         <dt class="col-5">{{ __('Phone') }}</dt><dd class="col-7"><a href="tel:{{ $visitor->phone }}">{{ $visitor->phone }}</a></dd>
                         <dt class="col-5">{{ __('Email') }}</dt><dd class="col-7">{{ $visitor->email ?: '—' }}</dd>
-                        <dt class="col-5">{{ __('Category') }}</dt><dd class="col-7">{{ $visitor->category?->name ?? '—' }}</dd>
+                        <dt class="col-5">{{ __('Category') }}</dt><dd class="col-7">{{ $visitor->category?->local_name ?? '—' }}</dd>
                         <dt class="col-5">{{ __('Gym terms') }}</dt>
                         <dd class="col-7">
                             @if ($visitor->terms_accepted)
@@ -95,7 +95,7 @@
                         <tbody>
                         @forelse ($subscriptions as $sub)
                             <tr @class(['table-success' => $sub->isActive(), 'text-body-secondary' => ! $sub->isActive()])>
-                                <td>{{ $sub->ticketType->name }}</td>
+                                <td>{{ $sub->ticketType->local_name }}</td>
                                 <td>{{ $sub->timeSlot->label() }}</td>
                                 <td>{{ $sub->starts_on->format('d.m.Y') }} – {{ $sub->ends_on->format('d.m.Y') }}</td>
                                 <td>{{ $sub->visits_used }}{{ $sub->visits_limit ? ' / '.$sub->visits_limit : '' }}</td>
@@ -131,7 +131,7 @@
                             <tr>
                                 <td>{{ $visit->entered_at->format('d.m.Y H:i') }}</td>
                                 <td>{{ $visit->age_at_visit }}</td>
-                                <td>{{ $visit->ticketType?->name }}</td>
+                                <td>{{ $visit->ticketType?->local_name }}</td>
                                 <td>{{ $visit->timeSlot?->label() }}</td>
                                 <td class="text-end">@include('admin.partials.visit-price')</td>
                                 <td><small>{{ $visit->creator?->name }}</small></td>

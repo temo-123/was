@@ -17,7 +17,7 @@
                     <select name="role" class="form-select">
                         <option value="">{{ __('All roles') }}</option>
                         @foreach ($roles as $role)
-                            <option value="{{ $role->name }}" @selected(request('role') === $role->name)>{{ $role->display_name }}</option>
+                            <option value="{{ $role->name }}" @selected(request('role') === $role->name)>{{ __($role->display_name ?? '') }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -40,7 +40,7 @@
                             {{ $user->email }}
                             @unless ($user->hasVerifiedEmail())<i class="bi bi-exclamation-circle text-warning" title="{{ __('Email not verified') }}"></i>@endunless
                         </td>
-                        <td>@foreach ($user->roles as $role)<span class="badge text-bg-primary me-1">{{ $role->display_name }}</span>@endforeach</td>
+                        <td>@foreach ($user->roles as $role)<span class="badge text-bg-primary me-1">{{ __($role->display_name ?? '') }}</span>@endforeach</td>
                         <td>
                             @if ($user->visitor)
                                 <a href="{{ route('admin.visitors.show', $user->visitor) }}">{{ $user->visitor->full_name }}</a>

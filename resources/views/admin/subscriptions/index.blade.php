@@ -28,7 +28,7 @@
                 @forelse ($subscriptions as $sub)
                     <tr>
                         <td><a href="{{ route('admin.visitors.show', $sub->visitor_id) }}">{{ $sub->visitor?->full_name }}</a></td>
-                        <td>{{ $sub->ticketType->name }} <small class="text-body-secondary">{{ $sub->ageGroup?->label() }}</small></td>
+                        <td>{{ $sub->ticketType->local_name }} <small class="text-body-secondary">{{ $sub->ageGroup?->label() }}</small></td>
                         <td>{{ $sub->timeSlot->label() }}</td>
                         <td class="text-nowrap">
                             {{ $sub->starts_on->format('d.m.Y') }} – {{ $sub->ends_on->format('d.m.Y') }}

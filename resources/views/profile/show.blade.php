@@ -22,7 +22,7 @@
                     <div class="text-body-secondary small">{{ $user->email }}</div>
                     <div class="mt-2">
                         @foreach ($user->roles as $role)
-                            <span class="badge text-bg-secondary">{{ $role->display_name }}</span>
+                            <span class="badge text-bg-secondary">{{ __($role->display_name) }}</span>
                         @endforeach
                     </div>
                     @if ($user->canAccessAdmin())
@@ -38,7 +38,7 @@
                         <dl class="row small mb-0">
                             <dt class="col-5">{{ __('Name') }}</dt><dd class="col-7">{{ $visitor->full_name }}</dd>
                             <dt class="col-5">{{ __('ID number') }}</dt><dd class="col-7">{{ $visitor->personal_id }}</dd>
-                            <dt class="col-5">{{ __('Category') }}</dt><dd class="col-7">{{ $visitor->category?->name ?? '—' }}</dd>
+                            <dt class="col-5">{{ __('Category') }}</dt><dd class="col-7">{{ $visitor->category?->local_name ?? '—' }}</dd>
                             <dt class="col-5">{{ __('Visits') }}</dt><dd class="col-7">{{ $visitor->visits()->count() }}</dd>
                         </dl>
                     @else
@@ -60,7 +60,7 @@
                             <tbody>
                             @forelse ($subscriptions as $sub)
                                 <tr>
-                                    <td>{{ $sub->ticketType->name }}</td>
+                                    <td>{{ $sub->ticketType->local_name }}</td>
                                     <td>{{ $sub->timeSlot->label() }}</td>
                                     <td>{{ $sub->starts_on->format('d.m.Y') }} – {{ $sub->ends_on->format('d.m.Y') }}</td>
                                     <td>
@@ -86,7 +86,7 @@
                             @forelse ($visits as $visit)
                                 <tr>
                                     <td>{{ $visit->entered_at->format('d.m.Y H:i') }}</td>
-                                    <td>{{ $visit->ticketType?->name }}</td>
+                                    <td>{{ $visit->ticketType?->local_name }}</td>
                                     <td class="text-end">{{ $visit->payment_method === 'subscription' ? __('subscription') : number_format($visit->price, 2).' ₾' }}</td>
                                 </tr>
                             @empty

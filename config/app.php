@@ -82,6 +82,12 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    // Languages a visitor can switch between (code => name in that language). Georgian texts: lang/ka.json, lang/ka/*.php.
+    'locales' => [
+        'ka' => 'ქართული',
+        'en' => 'English',
+    ],
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

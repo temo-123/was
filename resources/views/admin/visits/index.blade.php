@@ -26,7 +26,7 @@
                     <select name="time_slot" class="form-select">
                         <option value="">{{ __('All') }}</option>
                         @foreach ($timeSlots as $slot)
-                            <option value="{{ $slot->id }}" @selected(request('time_slot') == $slot->id)>{{ $slot->name }} ({{ $slot->label() }})</option>
+                            <option value="{{ $slot->id }}" @selected(request('time_slot') == $slot->id)>{{ $slot->local_name }} ({{ $slot->label() }})</option>
                         @endforeach
                     </select>
                 </div>
@@ -35,7 +35,7 @@
                     <select name="ticket_type" class="form-select">
                         <option value="">{{ __('All') }}</option>
                         @foreach ($ticketTypes as $type)
-                            <option value="{{ $type->id }}" @selected(request('ticket_type') == $type->id)>{{ $type->name }}</option>
+                            <option value="{{ $type->id }}" @selected(request('ticket_type') == $type->id)>{{ $type->local_name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -95,7 +95,7 @@
                             <small class="text-body-secondary d-block">{{ $visit->visitor?->personal_id }}</small>
                         </td>
                         <td>{{ $visit->age_at_visit }} <small class="text-body-secondary">{{ $visit->ageGroup?->label() }}</small></td>
-                        <td>{{ $visit->ticketType?->name }}</td>
+                        <td>{{ $visit->ticketType?->local_name }}</td>
                         <td>{{ $visit->timeSlot?->label() }}</td>
                         <td class="text-end text-nowrap">@include('admin.partials.visit-price')</td>
                         <td><small>{{ $visit->creator?->name }}</small></td>
