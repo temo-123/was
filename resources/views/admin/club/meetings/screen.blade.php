@@ -47,7 +47,7 @@
 
         <div class="step"><span class="step-num">1</span> {{ __('Open your phone camera') }}</div>
         <div class="step"><span class="step-num">2</span> {{ __('Point it at the QR code') }}</div>
-        <div class="step"><span class="step-num">3</span> {{ __('Enter your ID number or phone') }}</div>
+        <div class="step"><span class="step-num">3</span> {{ __('Find yourself by name, phone, email or ID number') }}</div>
 
         @if ($unreachable || $localhost)
             <div class="alert alert-warning small mt-4 mb-0">
@@ -59,11 +59,15 @@
 
     {{-- Center: QR code --}}
     <section class="qr-card">
-        <div id="qr-closed" class="p-5 fs-3 text-body-secondary" @if ($meeting->is_open) hidden @endif>
-            <i class="bi bi-lock display-1 d-block mb-3"></i> {{ __('Check-in is closed') }}
+        <div id="qr-closed" class="p-5 text-body-secondary" @if ($meeting->is_open) hidden @endif>
+            <i class="bi bi-lock display-1 d-block mb-3"></i>
+            <div class="fs-2 fw-semibold">{{ __('Registration is closed') }}</div>
+            <div class="fs-5">{{ __('The meeting is finished.') }}</div>
         </div>
-        <div id="qr" @unless ($meeting->is_open) hidden @endunless>{!! $svg !!}</div>
-        <div class="fs-4 fw-semibold mt-2"><i class="bi bi-qr-code-scan text-primary"></i> {{ __('Scan to check in') }}</div>
+        <div id="qr-open" @unless ($meeting->is_open) hidden @endunless>
+            <div id="qr">{!! $svg !!}</div>
+            <div class="fs-4 fw-semibold mt-2"><i class="bi bi-qr-code-scan text-primary"></i> {{ __('Scan to check in') }}</div>
+        </div>
     </section>
 
     {{-- Right: who is here --}}
@@ -91,9 +95,10 @@
                 const response = await fetch(pollUrl, {headers: {Accept: 'application/json'}});
                 if (!response.ok) return;
                 const data = await response.json();
-                $('qr').innerHTML = data.svg;
-                $('qr').hidden = !data.is_open;
+                $('qr').innerHTML = data.svg ?? '';
+                $('qr-open').hidden = !data.is_open;
                 $('qr-closed').hidden = data.is_open;
+                if (!data.is_open) clearInterval(timer); // finished: the list won't change any more
                 $('qr-count').textContent = data.count;
                 // Names that just arrived get a small "pop" animation.
                 $('qr-latest').innerHTML = data.latest.map((item) =>
@@ -105,7 +110,7 @@
         }
 
         // The QR code changes every {{ $rotation }} s; the attendee list is refreshed more often.
-        setInterval(refresh, 5000);
+        const timer = setInterval(refresh, 5000);
 
         $('fullscreen').addEventListener('click', () => document.documentElement.requestFullscreen?.());
     })();

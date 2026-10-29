@@ -5,13 +5,14 @@
 @section('actions')
     <div class="d-flex flex-wrap gap-2">
         @can('club.meetings.manage')
-            <a href="{{ route('admin.club.meetings.screen', $meeting) }}" target="_blank" rel="noopener" class="btn btn-dark"><i class="bi bi-qr-code"></i> {{ __('Show QR code') }}</a>
-            <form method="POST" action="{{ route('admin.club.meetings.toggle', $meeting) }}">
-                @csrf
-                <button @class(['btn', 'btn-outline-danger' => $meeting->is_open, 'btn-outline-success' => ! $meeting->is_open])>
-                    <i class="bi {{ $meeting->is_open ? 'bi-lock' : 'bi-unlock' }}"></i> {{ $meeting->is_open ? __('Close check-in') : __('Open check-in') }}
-                </button>
-            </form>
+            @if ($meeting->is_open)
+                <a href="{{ route('admin.club.meetings.screen', $meeting) }}" target="_blank" rel="noopener" class="btn btn-dark"><i class="bi bi-qr-code"></i> {{ __('Show QR code') }}</a>
+                <form method="POST" action="{{ route('admin.club.meetings.close', $meeting) }}"
+                      onsubmit="return confirm(@js(__('Finish the meeting? Check-in will be closed for good and nobody can be added any more.')))">
+                    @csrf
+                    <button class="btn btn-outline-danger"><i class="bi bi-lock"></i> {{ __('Finish meeting') }}</button>
+                </form>
+            @endif
             <a href="{{ route('admin.club.meetings.edit', $meeting) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i> {{ __('Edit') }}</a>
         @endcan
         <a href="{{ route('admin.club.meetings.export', $meeting) }}" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-excel"></i> {{ __('Export') }}</a>
@@ -22,8 +23,12 @@
     <p class="text-body-secondary">
         <i class="bi bi-calendar-event"></i> {{ $meeting->starts_at->format('d.m.Y H:i') }}
         @if ($meeting->location) · <i class="bi bi-geo-alt"></i> {{ $meeting->location }} @endif
-        · {{ $meeting->is_open ? __('check-in open') : __('check-in closed') }}
+        · {{ $meeting->is_open ? __('check-in open') : __('finished') }}
     </p>
+    @unless ($meeting->is_open)
+        <div class="alert alert-secondary py-2"><i class="bi bi-lock"></i> {{ __('This meeting is finished: check-in is closed and nobody can be added any more.') }}</div>
+    @endunless
+    @error('member_ids')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
     @php($newcomers = $attendances->filter(fn ($a) => $a->member->is_pending)->count())
     @if ($newcomers)
         <div class="alert alert-warning py-2">
@@ -78,7 +83,7 @@
             </div>
         </div>
 
-        @can('club.meetings.manage')
+        @if ($meeting->is_open && auth()->user()->can('club.meetings.manage'))
             <div class="col-lg-5">
                 <form method="POST" action="{{ route('admin.club.meetings.attendances.store', $meeting) }}" class="card">
                     @csrf
@@ -101,7 +106,7 @@
                     @endif
                 </form>
             </div>
-        @endcan
+        @endif
     </div>
 @endsection
 

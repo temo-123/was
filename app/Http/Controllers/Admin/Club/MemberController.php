@@ -98,10 +98,12 @@ class MemberController extends Controller
             $member->attendances()
                 ->whereNotIn('club_meeting_id', $target->attendances()->pluck('club_meeting_id'))
                 ->update(['club_member_id' => $target->id]);
-            if (! $target->phone && $member->phone) {
-                $target->update(['phone' => $member->phone]);
-            }
             $member->delete(); // attendance at meetings the target already has goes with it
+            // Contacts are unique, so they can move only after the copy is gone.
+            foreach (['personal_id', 'phone', 'email'] as $field) {
+                $target->{$field} ??= $member->{$field};
+            }
+            $target->save();
         });
         ActivityLog::record('club_member.merged', $target, ['from' => $member->id, 'name' => $member->full_name]);
 

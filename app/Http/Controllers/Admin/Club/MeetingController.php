@@ -33,7 +33,7 @@ class MeetingController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $meeting = ClubMeeting::create($this->validated($request) + ['created_by' => $request->user()->id]);
+        $meeting = ClubMeeting::create($this->validated($request) + ['is_open' => true, 'created_by' => $request->user()->id]);
         ActivityLog::record('club_meeting.created', $meeting);
 
         return redirect()->route('admin.club.meetings.show', $meeting)->with('success', __('Meeting created.'));
@@ -74,13 +74,15 @@ class MeetingController extends Controller
         return redirect()->route('admin.club.meetings.index')->with('success', __('Meeting deleted.'));
     }
 
-    /** Open / close check-in. */
-    public function toggle(ClubMeeting $meeting): RedirectResponse
+    /** Finishes the meeting for good: the QR code stops working and nobody can be added any more. */
+    public function close(ClubMeeting $meeting): RedirectResponse
     {
-        $meeting->update(['is_open' => ! $meeting->is_open]);
-        ActivityLog::record($meeting->is_open ? 'club_meeting.opened' : 'club_meeting.closed', $meeting);
+        if ($meeting->is_open) {
+            $meeting->update(['is_open' => false]);
+            ActivityLog::record('club_meeting.closed', $meeting);
+        }
 
-        return back()->with('success', $meeting->is_open ? __('Check-in is open.') : __('Check-in is closed.'));
+        return back()->with('success', __('The meeting is finished, check-in is closed.'));
     }
 
     /** Big QR code for the screen / projector. */
@@ -91,7 +93,7 @@ class MeetingController extends Controller
         return view('admin.club.meetings.screen', [
             'meeting' => $meeting,
             'url' => $url,
-            'svg' => $qr->svg($url),
+            'svg' => $meeting->is_open ? $qr->svg($url) : null,
             'unreachable' => $qr->unreachable($request),
             'localhost' => str_contains(parse_url($url, PHP_URL_HOST) ?? '', 'localhost') || str_starts_with(parse_url($url, PHP_URL_HOST) ?? '', '127.'),
             'rotation' => config('club.qr_rotation_seconds'),
@@ -101,13 +103,17 @@ class MeetingController extends Controller
     /** Polled by the screen page: fresh QR code + who already checked in. */
     public function qr(Request $request, ClubMeeting $meeting, CheckinQr $qr): JsonResponse
     {
-        $url = $qr->url($meeting, $request);
+        $url = $meeting->is_open ? $qr->url($meeting, $request) : null;
 
-        return response()->json(['url' => $url, 'svg' => $qr->svg($url), 'is_open' => $meeting->is_open] + $this->liveData($meeting));
+        return response()->json(['url' => $url, 'svg' => $url ? $qr->svg($url) : null, 'is_open' => $meeting->is_open] + $this->liveData($meeting));
     }
 
     public function addAttendee(Request $request, ClubMeeting $meeting): RedirectResponse
     {
+        if (! $meeting->is_open) {
+            return back()->withErrors(['member_ids' => __('The meeting is finished, nobody can be added any more.')]);
+        }
+
         $data = $request->validate(['member_ids' => ['required', 'array'], 'member_ids.*' => ['integer', Rule::exists('club_members', 'id')]]);
 
         foreach ($data['member_ids'] as $memberId) {
@@ -151,13 +157,11 @@ class MeetingController extends Controller
 
     private function validated(Request $request): array
     {
-        $data = $request->validate([
+        return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'starts_at' => ['required', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
-
-        return $data + ['is_open' => $request->boolean('is_open')];
     }
 }

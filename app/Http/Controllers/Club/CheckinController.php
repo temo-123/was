@@ -12,11 +12,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * Public page opened by scanning the meeting QR code. No login: the member types their name,
- * picks themselves from the matches, or registers as a new member (an admin approves them later).
+ * Public page opened by scanning the meeting QR code. No login: the member types their name, phone,
+ * email or ID number, picks themselves from the matches, or registers as a new member (an admin approves them later).
  * The phone remembers them for the next meetings.
  */
 class CheckinController extends Controller
@@ -37,16 +38,16 @@ class CheckinController extends Controller
         $allowed = $this->allowed($request, $meeting);
         $member = $this->rememberedMember($request);
 
-        // Name search (GET form): null = not searched yet.
+        // Search (GET form) by name, phone, email or ID number: null = not searched yet.
         $search = null;
         $matches = null;
-        if ($allowed && $meeting->is_open && $request->hasAny(['first_name', 'last_name'])) {
-            $search = VisitorRequest::normalize($request->only('first_name', 'last_name'));
-            $validator = Validator::make($search, $this->nameRules());
+        if ($allowed && $meeting->is_open && $request->has('q')) {
+            $validator = Validator::make($request->only('q'), $this->searchRules());
             if ($validator->fails()) {
                 return redirect()->route('club.checkin', $meeting)->withErrors($validator)->withInput();
             }
-            $matches = $this->matches($search['first_name'], $search['last_name']);
+            $search = trim($request->query('q'));
+            $matches = $this->matches($search);
         }
 
         return view('club.checkin', [
@@ -56,6 +57,7 @@ class CheckinController extends Controller
             'attendance' => $member ? $meeting->attendances()->where('club_member_id', $member->id)->first() : null,
             'search' => $search,
             'matches' => $matches,
+            'prefill' => $search !== null ? $this->prefill($search) : [],
         ]);
     }
 
@@ -65,15 +67,23 @@ class CheckinController extends Controller
             return redirect()->route('club.checkin', $meeting);
         }
 
-        $member = match (true) {
-            $request->boolean('remembered') => $this->rememberedMember($request),
-            $request->filled('member_id') => $this->pickedMember($request),
-            $request->boolean('new') => $this->registerMember($request, $meeting),
-            default => null,
-        };
+        if ($request->boolean('new')) {
+            $data = VisitorRequest::normalize($request->only('first_name', 'last_name', 'personal_id', 'phone', 'email'));
+            $validator = Validator::make($data, $this->registrationRules(), $this->registrationMessages());
+            if ($validator->fails()) {
+                return redirect()->route('club.checkin', [$meeting, 'q' => $request->input('q')])->withErrors($validator)->withInput();
+            }
+            $member = $this->registerMember($validator->validated(), $meeting);
+        } else {
+            $member = match (true) {
+                $request->boolean('remembered') => $this->rememberedMember($request),
+                $request->filled('member_id') => $this->pickedMember($request),
+                default => null,
+            };
+        }
 
         if (! $member) {
-            return redirect()->route('club.checkin', $meeting)->withErrors(['first_name' => __('Please search for your name again.')]);
+            return redirect()->route('club.checkin', $meeting)->withErrors(['q' => __('Please search for yourself again.')]);
         }
 
         $attendance = ClubAttendance::firstOrCreate(
@@ -96,58 +106,72 @@ class CheckinController extends Controller
         return redirect()->route('club.checkin', $meeting);
     }
 
-    /** The member chosen from the search results; the name is checked again so any ID can't be posted. */
+    /** The member chosen from the search results; the search is run again so any ID can't be posted. */
     private function pickedMember(Request $request): ?ClubMember
     {
-        $data = VisitorRequest::normalize($request->only('first_name', 'last_name'));
-        if (Validator::make($data, $this->nameRules())->fails()) {
+        if (Validator::make($request->only('q'), $this->searchRules())->fails()) {
             return null;
         }
 
-        return $this->matches($data['first_name'], $data['last_name'])->firstWhere('id', $request->integer('member_id'));
+        return $this->matches(trim($request->input('q')))->firstWhere('id', $request->integer('member_id'));
     }
 
-    /** "I'm not registered yet": creates a member waiting for admin approval (or reuses one with the same phone). */
-    private function registerMember(Request $request, ClubMeeting $meeting): ?ClubMember
+    /** "I'm not registered yet": creates a member waiting for admin approval. */
+    private function registerMember(array $data, ClubMeeting $meeting): ClubMember
     {
-        $data = VisitorRequest::normalize($request->only('first_name', 'last_name', 'phone'));
-        $validator = Validator::make($data, $this->nameRules() + [
-            'phone' => ['nullable', 'string', 'regex:'.VisitorRequest::PHONE_REGEX],
-        ], VisitorRequest::fieldMessages());
-        if ($validator->fails()) {
-            return null;
-        }
-
-        if (! empty($data['phone']) && ($existing = ClubMember::where('is_active', true)->where('phone', $data['phone'])->first())) {
-            return $existing;
-        }
-
-        $member = ClubMember::create([
-            'first_name' => $data['first_name'],
-            'last_name' => $data['last_name'],
-            'phone' => $data['phone'] ?? null,
-            'is_active' => true,
-            'is_pending' => true,
-        ]);
+        $member = ClubMember::create($data + ['is_active' => true, 'is_pending' => true]);
         ActivityLog::record('club_member.self_registered', $member, ['meeting' => $meeting->id]);
 
         return $member;
     }
 
-    private function matches(string $firstName, string $lastName): Collection
+    private function matches(string $term): Collection
     {
         return ClubMember::where('is_active', true)
-            ->nameMatch($firstName, $lastName)
+            ->checkinMatch($term)
             ->orderBy('is_pending')->orderBy('last_name')->orderBy('first_name')
             ->limit(10)
             ->get();
     }
 
-    private function nameRules(): array
+    /** Puts what was searched into the matching field of the registration form. */
+    private function prefill(string $term): array
+    {
+        $digits = preg_replace('/[\s\-().+]/', '', $term);
+
+        return match (true) {
+            str_contains($term, '@') => ['email' => $term],
+            ctype_digit($digits) && strlen($digits) === 11 => ['personal_id' => $digits],
+            ctype_digit($digits) => ['phone' => $digits],
+            default => array_combine(['first_name', 'last_name'], array_pad(preg_split('/\s+/', $term, 2), 2, null)),
+        };
+    }
+
+    private function searchRules(): array
+    {
+        return ['q' => ['required', 'string', 'min:2', 'max:255']];
+    }
+
+    /** Self-registration: every field is required, and the ID number, phone and email must be new. */
+    private function registrationRules(): array
     {
         return [
             'first_name' => ['required', 'string', 'min:2', 'max:100', 'regex:'.VisitorRequest::NAME_REGEX],
             'last_name' => ['required', 'string', 'min:2', 'max:100', 'regex:'.VisitorRequest::NAME_REGEX],
+            'personal_id' => ['required', 'string', 'regex:'.VisitorRequest::PERSONAL_ID_REGEX, Rule::unique('club_members', 'personal_id')],
+            'phone' => ['required', 'string', 'regex:'.VisitorRequest::PHONE_REGEX, Rule::unique('club_members', 'phone')],
+            'email' => ['required', 'string', 'max:255', 'email:rfc,strict', 'regex:'.VisitorRequest::EMAIL_REGEX, Rule::unique('club_members', 'email')],
+        ];
+    }
+
+    private function registrationMessages(): array
+    {
+        $registered = fn (string $field) => __('You are already registered with this :field — search for it above and tap your name.', ['field' => __($field)]);
+
+        return VisitorRequest::fieldMessages() + [
+            'personal_id.unique' => $registered('ID number'),
+            'phone.unique' => $registered('phone number'),
+            'email.unique' => $registered('email'),
         ];
     }
 

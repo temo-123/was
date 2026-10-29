@@ -111,14 +111,14 @@ class ClubTest extends TestCase
 
     public function test_member_finds_their_name_and_checks_in(): void
     {
-        $member = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => '599123456']);
+        $member = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => '599123456', 'email' => 'nino@gmail.com']);
         ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Kapanadze']);
         $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
         $url = "/m/{$meeting->token}";
 
         // Opening the link without a fresh code from the screen is not enough.
         $this->get($url)->assertOk()->assertSee('scan the QR code');
-        $this->post($url, ['member_id' => $member->id, 'first_name' => 'Nino', 'last_name' => 'Beridze']);
+        $this->post($url, ['member_id' => $member->id, 'q' => 'Nino Beridze']);
         $this->assertDatabaseCount('club_meeting_attendances', 0);
 
         $this->get("{$url}?c=wrong")->assertRedirect($url);
@@ -127,15 +127,22 @@ class ClubTest extends TestCase
         // Scan → search by name (any order, start of the name is enough) → pick yourself.
         $this->get("{$url}?c=".$meeting->checkinCode())->assertRedirect($url);
         $this->get($url)->assertSee('Find me');
-        $this->get("{$url}?first_name=beri&last_name=nin")
+        $this->get("{$url}?q=beri+nin")
             ->assertOk()->assertSee('Nino Beridze')->assertSee('•••456')->assertDontSee('Kapanadze');
+        $this->get("{$url}?q=Nino")->assertSee('Nino Beridze')->assertSee('Nino Kapanadze');
 
-        // A member id that doesn't match the searched name is refused.
+        // Phone, ID number and email find the member too (exact match only).
+        $this->get("{$url}?q=599-123-456")->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
+        $this->get("{$url}?q={$member->personal_id}")->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
+        $this->get("{$url}?q=".strtoupper($member->email))->assertSee('Nino Beridze')->assertDontSee('Kapanadze');
+        $this->get("{$url}?q=599123")->assertDontSee('Nino Beridze');
+
+        // A member id that doesn't match the search is refused.
         $other = ClubMember::where('last_name', 'Kapanadze')->first();
-        $this->post($url, ['member_id' => $other->id, 'first_name' => 'Nino', 'last_name' => 'Beridze'])->assertSessionHasErrors('first_name');
+        $this->post($url, ['member_id' => $other->id, 'q' => 'Nino Beridze'])->assertSessionHasErrors('q');
         $this->assertDatabaseCount('club_meeting_attendances', 0);
 
-        $this->post($url, ['member_id' => $member->id, 'first_name' => 'Nino', 'last_name' => 'Beridze'])
+        $this->post($url, ['member_id' => $member->id, 'q' => 'Nino Beridze'])
             ->assertRedirect($url)
             ->assertCookie('club_member');
         $this->assertDatabaseHas('club_meeting_attendances', ['club_meeting_id' => $meeting->id, 'club_member_id' => $member->id, 'method' => 'qr']);
@@ -152,33 +159,46 @@ class ClubTest extends TestCase
         $url = "/m/{$meeting->token}";
         $this->get("{$url}?c=".$meeting->checkinCode());
 
-        $this->get("{$url}?first_name=Luka&last_name=Tsiklauri")->assertOk()->assertSee('not registered yet');
-        $this->post($url, ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'phone' => '577 11 12 22'])->assertRedirect($url);
+        $this->get("{$url}?q=Luka+Tsiklauri")->assertOk()->assertSee('not registered yet')->assertSee('value="Tsiklauri"', false);
+        $this->get("{$url}?q=luka@gmail.com")->assertSee('value="luka@gmail.com"', false);
+
+        // Every field is required.
+        $this->post($url, ['new' => 1, 'q' => 'Luka', 'first_name' => 'Luka', 'last_name' => 'Tsiklauri'])
+            ->assertRedirect("{$url}?q=Luka")
+            ->assertSessionHasErrors(['personal_id', 'phone', 'email']);
+        $this->assertDatabaseCount('club_members', 0);
+
+        $luka = ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'personal_id' => '01001012345', 'phone' => '577 11 12 22', 'email' => 'Luka@Gmail.com'];
+        $this->post($url, $luka)->assertRedirect($url)->assertSessionHasNoErrors();
 
         $luka = ClubMember::where('first_name', 'Luka')->firstOrFail();
         $this->assertTrue($luka->is_pending);
         $this->assertSame('577111222', $luka->phone);
+        $this->assertSame('luka@gmail.com', $luka->email);
         $this->assertDatabaseHas('club_meeting_attendances', ['club_member_id' => $luka->id]);
 
-        // Registering again with the same phone reuses the member.
-        $this->post($url, ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'phone' => '577111222']);
-        $this->assertSame(1, ClubMember::where('first_name', 'Luka')->count());
+        // ID number, phone and email can't be registered twice: the person is told to search instead.
+        $this->post($url, ['new' => 1, 'first_name' => 'Luka', 'last_name' => 'Other', 'personal_id' => '01001012345', 'phone' => '577111222', 'email' => 'luka@gmail.com'])
+            ->assertSessionHasErrors(['personal_id', 'phone', 'email']);
+        $this->assertSame(1, ClubMember::count());
 
         // Admin sees them in the "Self-registered" tab, not in the main list.
         $this->actingAs($this->admin)->get('/admin/club/members?tab=new')->assertOk()->assertSee('Tsiklauri');
         $this->actingAs($this->admin)->get('/admin/club/members')->assertOk()->assertDontSee('Tsiklauri');
         $this->actingAs($this->admin)->get("/admin/club/members/{$luka->id}/edit")->assertOk()->assertSee('Add to the member list');
 
-        // A pending member can be saved without ID number / phone.
-        $this->actingAs($this->admin)->put("/admin/club/members/{$luka->id}", ['first_name' => 'Luka', 'last_name' => 'Tsiklauri', 'is_active' => 1])
-            ->assertSessionHasNoErrors();
+        // The admin form doesn't allow another member's phone or email either.
+        $other = ClubMember::factory()->create();
+        $this->actingAs($this->admin)->put("/admin/club/members/{$other->id}", ['first_name' => 'A', 'last_name' => 'B', 'phone' => '577111222', 'email' => 'luka@gmail.com'])
+            ->assertSessionHasErrors(['phone', 'email']);
 
         $this->actingAs($this->admin)->post("/admin/club/members/{$luka->id}/approve")->assertRedirect();
         $this->assertFalse($luka->fresh()->is_pending);
 
         // Somebody who is already a member registers again → merged into the existing one.
-        $nino = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => null]);
-        $this->post($url, ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => '599000111']);
+        $nino = ClubMember::factory()->create(['first_name' => 'Nino', 'last_name' => 'Beridze', 'phone' => null, 'email' => null]);
+        $this->post($url, ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze', 'personal_id' => '01001099999', 'phone' => '599000111', 'email' => 'nino@gmail.com'])
+            ->assertSessionHasNoErrors();
         $copy = ClubMember::where('is_pending', true)->firstOrFail();
 
         $this->actingAs($this->admin)->get('/admin/club/members?tab=new')->assertSee('Merge into Nino Beridze');
@@ -187,6 +207,7 @@ class ClubTest extends TestCase
         $this->assertModelMissing($copy);
         $this->assertDatabaseHas('club_meeting_attendances', ['club_meeting_id' => $meeting->id, 'club_member_id' => $nino->id]);
         $this->assertSame('599000111', $nino->fresh()->phone);
+        $this->assertSame('nino@gmail.com', $nino->fresh()->email);
     }
 
     public function test_old_qr_codes_expire_and_closed_meetings_reject_check_in(): void
@@ -202,7 +223,7 @@ class ClubTest extends TestCase
         $meeting->update(['is_open' => false]);
         $this->get("/m/{$meeting->token}?c=".$meeting->checkinCode());
         $this->get("/m/{$meeting->token}")->assertSee('closed');
-        $this->post("/m/{$meeting->token}", ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze']);
+        $this->post("/m/{$meeting->token}", ['new' => 1, 'first_name' => 'Nino', 'last_name' => 'Beridze', 'personal_id' => '01001012345', 'phone' => '599123456', 'email' => 'nino@gmail.com']);
         $this->assertDatabaseCount('club_meeting_attendances', 0);
         $this->assertDatabaseCount('club_members', 1);
     }
@@ -219,6 +240,30 @@ class ClubTest extends TestCase
         $attendance = $meeting->attendances()->first();
         $this->actingAs($this->admin)->delete("/admin/club/meetings/{$meeting->id}/attendances/{$attendance->id}")->assertRedirect();
         $this->assertDatabaseCount('club_meeting_attendances', 1);
+    }
+
+    public function test_finished_meeting_is_closed_for_good(): void
+    {
+        $member = ClubMember::factory()->create();
+        $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
+        $this->get("/m/{$meeting->token}?c=".$meeting->checkinCode());
+
+        $this->actingAs($this->admin)->post("/admin/club/meetings/{$meeting->id}/close")->assertRedirect();
+        $this->assertFalse($meeting->fresh()->is_open);
+
+        // Editing doesn't reopen it.
+        $this->actingAs($this->admin)->put("/admin/club/meetings/{$meeting->id}", ['title' => 'Renamed', 'starts_at' => now()->format('Y-m-d H:i'), 'is_open' => 1]);
+        $this->assertFalse($meeting->fresh()->is_open);
+
+        // Nobody can be added: neither by the admin nor through the QR page.
+        $this->actingAs($this->admin)->post("/admin/club/meetings/{$meeting->id}/attendances", ['member_ids' => [$member->id]])->assertSessionHasErrors('member_ids');
+        $this->withCookie('club_member', (string) $member->id)->post("/m/{$meeting->token}", ['remembered' => 1]);
+        $this->assertDatabaseCount('club_meeting_attendances', 0);
+
+        // The screen shows "closed" instead of the QR code.
+        $this->actingAs($this->admin)->get("/admin/club/meetings/{$meeting->id}/screen")->assertOk()->assertSee('Registration is closed')->assertDontSee('<svg', false);
+        $this->actingAs($this->admin)->getJson("/admin/club/meetings/{$meeting->id}/qr")->assertJson(['is_open' => false, 'svg' => null, 'url' => null]);
+        $this->actingAs($this->admin)->get("/admin/club/meetings/{$meeting->id}")->assertSee('This meeting is finished')->assertDontSee('Finish meeting');
     }
 
     private function xlsx(array $rows): UploadedFile

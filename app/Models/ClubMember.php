@@ -59,6 +59,32 @@ class ClubMember extends Model
             ->orWhere(fn (Builder $w) => $w->where('first_name', 'like', $like($lastName))->where('last_name', 'like', $like($firstName))));
     }
 
+    /**
+     * What a member typed on the check-in page: an email, ID number or phone (exact match),
+     * or a name ("Nino Beridze", "beri nin" or just one of the names, start of the word is enough).
+     */
+    public function scopeCheckinMatch(Builder $query, string $term): Builder
+    {
+        $term = trim($term);
+        $digits = preg_replace('/[\s\-().+]/', '', $term);
+
+        if (str_contains($term, '@')) {
+            return $query->where('email', mb_strtolower($term));
+        }
+        if (ctype_digit($digits)) {
+            return $query->where(fn (Builder $q) => $q->where('personal_id', $digits)->orWhere('phone', $digits));
+        }
+
+        $words = preg_split('/\s+/', $term, 2);
+        if (count($words) === 2) {
+            return $query->nameMatch($words[0], $words[1]);
+        }
+
+        $like = str_replace(['%', '_'], ['\%', '\_'], $term).'%';
+
+        return $query->where(fn (Builder $q) => $q->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like));
+    }
+
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);

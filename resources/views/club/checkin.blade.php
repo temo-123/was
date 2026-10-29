@@ -35,21 +35,14 @@
                         <button class="btn btn-link btn-sm">{{ __('This is not me') }}</button>
                     </form>
                 @else
-                    {{-- 1. Name search --}}
+                    {{-- 1. Search by name, phone, email or ID number --}}
                     <form method="GET" action="{{ route('club.checkin', $meeting) }}">
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <label for="first_name" class="form-label">{{ __('First name') }}</label>
-                                <input id="first_name" name="first_name" required minlength="2" maxlength="100" autocomplete="given-name" @if (! $search) autofocus @endif
-                                       value="{{ $search['first_name'] ?? old('first_name') }}" class="form-control form-control-lg @error('first_name') is-invalid @enderror">
-                            </div>
-                            <div class="col-6">
-                                <label for="last_name" class="form-label">{{ __('Last name') }}</label>
-                                <input id="last_name" name="last_name" required minlength="2" maxlength="100" autocomplete="family-name"
-                                       value="{{ $search['last_name'] ?? old('last_name') }}" class="form-control form-control-lg @error('last_name') is-invalid @enderror">
-                            </div>
-                        </div>
-                        <button @class(['btn btn-lg w-100 mt-3', 'btn-primary' => ! $search, 'btn-outline-primary' => $search])>
+                        <label for="q" class="form-label">{{ __('Your name, phone, email or ID number') }}</label>
+                        <input id="q" name="q" required minlength="2" maxlength="255" autocomplete="off" @if ($search === null) autofocus @endif
+                               value="{{ $search ?? old('q') }}" placeholder="{{ __('e.g. first and last name, or 599123456') }}"
+                               class="form-control form-control-lg @error('q') is-invalid @enderror">
+                        @error('q')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <button @class(['btn btn-lg w-100 mt-3', 'btn-primary' => $search === null, 'btn-outline-primary' => $search !== null])>
                             <i class="bi bi-search"></i> {{ __('Find me') }}
                         </button>
                     </form>
@@ -64,8 +57,7 @@
                                     <form method="POST" action="{{ route('club.checkin.store', $meeting) }}">
                                         @csrf
                                         <input type="hidden" name="member_id" value="{{ $match->id }}">
-                                        <input type="hidden" name="first_name" value="{{ $search['first_name'] }}">
-                                        <input type="hidden" name="last_name" value="{{ $search['last_name'] }}">
+                                        <input type="hidden" name="q" value="{{ $search }}">
                                         <button class="btn btn-success btn-lg w-100 d-flex justify-content-between align-items-center">
                                             <span><i class="bi bi-person-check"></i> {{ $match->full_name }}</span>
                                             <small class="opacity-75">
@@ -78,20 +70,36 @@
                             </div>
                         @else
                             <div class="alert alert-info mb-0">
-                                <i class="bi bi-info-circle"></i> {{ __('We could not find :name in the member list.', ['name' => $search['first_name'].' '.$search['last_name']]) }}
+                                <i class="bi bi-info-circle"></i> {{ __('We could not find ":search" in the member list.', ['search' => $search]) }}
                             </div>
                         @endif
 
-                        {{-- 3. Not registered yet --}}
-                        <form method="POST" action="{{ route('club.checkin.store', $meeting) }}" class="mt-3 p-3 bg-body-tertiary rounded">
+                        {{-- 3. Not registered yet: all fields required --}}
+                        <form method="POST" action="{{ route('club.checkin.store', $meeting) }}" class="mt-3 p-3 bg-body-tertiary rounded" novalidate data-validate>
                             @csrf
                             <input type="hidden" name="new" value="1">
-                            <input type="hidden" name="first_name" value="{{ $search['first_name'] }}">
-                            <input type="hidden" name="last_name" value="{{ $search['last_name'] }}">
-                            <p class="mb-2">{{ $matches->isNotEmpty() ? __('Not in the list?') : __('You are not registered yet — no problem.') }}</p>
-                            <label for="phone" class="form-label small">{{ __('Phone') }} <span class="text-body-secondary">({{ __('optional, helps us find you next time') }})</span></label>
-                            <input id="phone" name="phone" type="tel" inputmode="numeric" maxlength="20" placeholder="599123456" class="form-control mb-2">
-                            <button class="btn btn-warning w-100"><i class="bi bi-person-plus"></i> {{ __('I\'m not registered yet — check in anyway') }}</button>
+                            <input type="hidden" name="q" value="{{ $search }}">
+                            <p class="mb-2">{{ $matches->isNotEmpty() ? __('Not in the list? Register:') : __('You are not registered yet — no problem, fill in your details:') }}</p>
+                            @php
+                                $fields = [
+                                    ['first_name', __('First name'), 'text', 'minlength="2" maxlength="100" autocomplete="given-name"'],
+                                    ['last_name', __('Last name'), 'text', 'minlength="2" maxlength="100" autocomplete="family-name"'],
+                                    ['personal_id', __('ID number'), 'text', 'inputmode="numeric" maxlength="11" pattern="\d{11}" data-digits="11" placeholder="01001012345" data-error="'.e(__('Exactly 11 digits.')).'"'],
+                                    ['phone', __('Phone'), 'tel', 'inputmode="numeric" maxlength="15" pattern="\d{9,15}" data-digits="15" placeholder="599123456" autocomplete="tel" data-error="'.e(__('The phone number must contain only digits (9–15).')).'"'],
+                                    ['email', __('Email'), 'email', 'maxlength="255" placeholder="name@gmail.com" autocomplete="email" data-error="'.e(__('Enter a real email address, e.g. name@gmail.com.')).'"'],
+                                ];
+                            @endphp
+                            <div class="row g-2">
+                                @foreach ($fields as [$name, $label, $type, $attributes])
+                                    <div @class(['col-6' => in_array($name, ['first_name', 'last_name']), 'col-12' => ! in_array($name, ['first_name', 'last_name'])])>
+                                        <label for="reg_{{ $name }}" class="form-label small mb-1">{{ $label }} <span class="text-danger">*</span></label>
+                                        <input id="reg_{{ $name }}" name="{{ $name }}" type="{{ $type }}" required {!! $attributes !!}
+                                               value="{{ old($name, $prefill[$name] ?? '') }}" class="form-control @error($name) is-invalid @enderror">
+                                        <div class="invalid-feedback">{{ $errors->first($name) }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <button class="btn btn-warning w-100 mt-3"><i class="bi bi-person-plus"></i> {{ __('I\'m not registered yet — check in anyway') }}</button>
                         </form>
                     @endif
 

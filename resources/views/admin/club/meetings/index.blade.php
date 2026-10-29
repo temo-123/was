@@ -33,7 +33,7 @@
                             @if ($meeting->is_open)
                                 <span class="badge text-bg-success">{{ __('open') }}</span>
                             @else
-                                <span class="badge text-bg-secondary">{{ __('closed') }}</span>
+                                <span class="badge text-bg-secondary"><i class="bi bi-lock"></i> {{ __('finished') }}</span>
                             @endif
                         </td>
                         <td class="text-end text-nowrap">

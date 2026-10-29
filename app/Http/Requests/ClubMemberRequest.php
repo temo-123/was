@@ -30,16 +30,20 @@ class ClubMemberRequest extends FormRequest
     public static function fieldRules(int|false|null $ignoreId = null, bool $requireContact = true): array
     {
         $personalId = ['nullable', ...($requireContact ? ['required_without:phone'] : []), 'string', 'regex:'.VisitorRequest::PERSONAL_ID_REGEX];
+        $phone = ['nullable', ...($requireContact ? ['required_without:personal_id'] : []), 'string', 'regex:'.VisitorRequest::PHONE_REGEX];
+        $email = ['nullable', 'string', 'max:255', 'email:rfc,strict', 'regex:'.VisitorRequest::EMAIL_REGEX];
         if ($ignoreId !== false) {
             $personalId[] = Rule::unique('club_members', 'personal_id')->ignore($ignoreId);
+            $phone[] = Rule::unique('club_members', 'phone')->ignore($ignoreId);
+            $email[] = Rule::unique('club_members', 'email')->ignore($ignoreId);
         }
 
         return [
             'first_name' => ['required', 'string', 'min:2', 'max:100', 'regex:'.VisitorRequest::NAME_REGEX],
             'last_name' => ['required', 'string', 'min:2', 'max:100', 'regex:'.VisitorRequest::NAME_REGEX],
             'personal_id' => $personalId,
-            'phone' => ['nullable', ...($requireContact ? ['required_without:personal_id'] : []), 'string', 'regex:'.VisitorRequest::PHONE_REGEX],
-            'email' => ['nullable', 'string', 'max:255', 'email:rfc,strict', 'regex:'.VisitorRequest::EMAIL_REGEX],
+            'phone' => $phone,
+            'email' => $email,
             'birth_date' => ['nullable', 'date', 'before:today', 'after:1900-01-01'],
             'joined_on' => ['nullable', 'date', 'after:1900-01-01'],
             'comment' => ['nullable', 'string', 'max:2000'],
@@ -60,6 +64,8 @@ class ClubMemberRequest extends FormRequest
     {
         return VisitorRequest::fieldMessages() + [
             'personal_id.unique' => __('A club member with this ID number already exists.'),
+            'phone.unique' => __('A club member with this phone number already exists.'),
+            'email.unique' => __('A club member with this email already exists.'),
             'personal_id.required_without' => __('Enter the ID number or the phone number.'),
             'phone.required_without' => __('Enter the ID number or the phone number.'),
         ];

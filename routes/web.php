@@ -127,7 +127,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin.access'])
             Route::get('/meetings/{meeting}/edit', [Admin\Club\MeetingController::class, 'edit'])->name('meetings.edit');
             Route::put('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'update'])->name('meetings.update');
             Route::delete('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'destroy'])->name('meetings.destroy');
-            Route::post('/meetings/{meeting}/toggle', [Admin\Club\MeetingController::class, 'toggle'])->name('meetings.toggle');
+            Route::post('/meetings/{meeting}/close', [Admin\Club\MeetingController::class, 'close'])->name('meetings.close');
             Route::get('/meetings/{meeting}/screen', [Admin\Club\MeetingController::class, 'screen'])->name('meetings.screen');
             Route::get('/meetings/{meeting}/qr', [Admin\Club\MeetingController::class, 'qr'])->name('meetings.qr');
             Route::post('/meetings/{meeting}/attendances', [Admin\Club\MeetingController::class, 'addAttendee'])->name('meetings.attendances.store');

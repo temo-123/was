@@ -28,13 +28,6 @@
                     <label for="notes" class="form-label">{{ __('Notes') }}</label>
                     <textarea id="notes" name="notes" rows="3" class="form-control @error('notes') is-invalid @enderror">{{ old('notes', $meeting->notes) }}</textarea>
                 </div>
-                <div class="col-12">
-                    <div class="form-check form-switch">
-                        <input type="hidden" name="is_open" value="0">
-                        <input class="form-check-input" type="checkbox" role="switch" id="is_open" name="is_open" value="1" @checked(old('is_open', $meeting->is_open))>
-                        <label class="form-check-label" for="is_open">{{ __('Check-in is open (members can scan the QR code)') }}</label>
-                    </div>
-                </div>
             </div>
         </div>
         <div class="card-footer d-flex gap-2">
