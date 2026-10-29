@@ -29,3 +29,7 @@ Thumbs.db
 # Not part of the app (server phpinfo, price list photo)
 /index.php
 /*.jpeg
+
+# AI assistant notes (local only)
+/CLAUDE.md
+/AGENTS.md
