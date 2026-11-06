@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'first_name', 'last_name', 'personal_id', 'birth_date', 'phone', 'email', 'comment',
-    'visitor_category_id', 'terms_accepted', 'terms_accepted_at', 'created_by',
+    'visitor_category_id', 'client_tier_id', 'client_tier_until', 'terms_accepted', 'terms_accepted_at', 'created_by',
 ])]
 class Visitor extends Model
 {
@@ -26,6 +26,7 @@ class Visitor extends Model
     {
         return [
             'birth_date' => 'date',
+            'client_tier_until' => 'date',
             'terms_accepted' => 'boolean',
             'terms_accepted_at' => 'datetime',
         ];
@@ -45,6 +46,26 @@ class Visitor extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(VisitorCategory::class, 'visitor_category_id');
+    }
+
+    /** Client status (VIP, Gold…); see activeTier() for whether it still counts. */
+    public function tier(): BelongsTo
+    {
+        return $this->belongsTo(ClientTier::class, 'client_tier_id');
+    }
+
+    /** The client status that gives a discount on the given day: set, switched on and not expired. */
+    public function activeTier(?CarbonInterface $at = null): ?ClientTier
+    {
+        $tier = $this->tier;
+        if (! $tier || ! $tier->is_active) {
+            return null;
+        }
+        if ($this->client_tier_until && $this->client_tier_until->endOfDay()->lt($at ?? now())) {
+            return null;
+        }
+
+        return $tier;
     }
 
     public function creator(): BelongsTo

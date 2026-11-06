@@ -20,7 +20,7 @@ class DashboardController extends Controller
         $subscriptionsSoldToday = VisitorSubscription::whereNull('cancelled_at')->whereDate('created_at', $today);
 
         $last7 = VisitorVisit::where('entered_at', '>=', $today->copy()->subDays(6))
-            ->selectRaw('DATE(entered_at) as day, COUNT(*) as visits, SUM(price) as revenue')
+            ->selectRaw('DATE(entered_at) as day, COUNT(*) as visits, SUM(total_price) as revenue')
             ->groupBy('day')
             ->pluck('visits', 'day');
 
@@ -33,7 +33,7 @@ class DashboardController extends Controller
         return view('admin.dashboard', [
             'stats' => [
                 'visits_today' => (clone $visitsToday)->count(),
-                'revenue_today' => (float) (clone $visitsToday)->sum('price') + (float) (clone $subscriptionsSoldToday)->sum('price'),
+                'revenue_today' => (float) (clone $visitsToday)->sum('total_price') + (float) (clone $subscriptionsSoldToday)->sum('price'),
                 'subscriptions_sold_today' => (clone $subscriptionsSoldToday)->count(),
                 'active_subscriptions' => VisitorSubscription::active()->count(),
                 'visitors_total' => Visitor::count(),
@@ -42,7 +42,7 @@ class DashboardController extends Controller
             'days' => $days,
             'maxDay' => max(1, $days->max('visits')),
             'bySlot' => TimeSlot::ordered()->withCount(['visits' => fn ($q) => $q->whereDate('entered_at', $today)])->get(),
-            'latestVisits' => (clone $visitsToday)->with('visitor', 'ticketType', 'timeSlot')->latest('entered_at')->limit(10)->get(),
+            'latestVisits' => (clone $visitsToday)->with('visitor', 'ticketType', 'timeSlot', 'rentals', 'tier')->latest('entered_at')->limit(10)->get(),
             'expiringSoon' => VisitorSubscription::active()->with('visitor', 'ticketType')
                 ->whereDate('ends_on', '<=', Carbon::today()->addDays(3))->orderBy('ends_on')->limit(10)->get(),
             'currentSlot' => TimeSlot::forTime(now()),

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Services\Pricing\Checkout;
+use App\Services\VisitCalendar;
 use App\Services\VisitorLinker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,15 +16,21 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
-    public function show(Request $request): View
+    public function show(Request $request, VisitCalendar $calendar): View
     {
-        $user = $request->user()->load('roles', 'visitor.category');
+        $user = $request->user()->load('roles', 'visitor.category', 'visitor.tier');
         $visitor = $user->visitor;
+        $visitCount = $visitor?->visits()->count() ?? 0;
+        $month = $calendar->month($request, $visitor?->visits()->max('entered_at'));
 
         return view('profile.show', [
             'user' => $user,
             'visitor' => $visitor,
-            'visits' => $visitor?->visits()->with('ticketType', 'timeSlot')->latest('entered_at')->limit(20)->get() ?? collect(),
+            'visitCount' => $visitCount,
+            'month' => $month,
+            'selectedDay' => $calendar->day($request),
+            'calendar' => $visitor ? $calendar->forVisitor($visitor, $month) : null,
+            'nextReward' => $visitor ? app(Checkout::class)->nextReward($visitCount) : null,
             'subscriptions' => $visitor?->subscriptions()->with('ticketType', 'timeSlot')->latest('ends_on')->limit(10)->get() ?? collect(),
         ]);
     }

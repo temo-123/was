@@ -37,7 +37,7 @@ class LocaleTest extends TestCase
             '/admin', '/admin/entry', '/admin/visitors', '/admin/visits', '/admin/subscriptions', '/admin/pricing', '/admin/users',
             '/admin/roles', '/admin/activity', '/admin/club/members', "/admin/club/members/{$member->id}/edit", '/admin/club/import',
             '/admin/club/meetings', "/admin/club/meetings/{$meeting->id}", "/admin/club/meetings/{$meeting->id}/screen",
-            '/admin/tech-tips', '/admin/tech-tips/create',
+            '/admin/tech-tips', '/admin/tech-tips/create', '/admin/rentals', '/admin/loyalty',
         ] as $url) {
             $this->actingAs($admin)->withUnencryptedCookie('locale', 'ka')->get($url)->assertOk();
         }

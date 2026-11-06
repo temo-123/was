@@ -78,6 +78,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin.access'])
         Route::delete('/visitors/{visitor}', [Admin\VisitorController::class, 'destroy'])->middleware('can:visitors.delete')->name('visitors.destroy');
         Route::post('/visitors/{visitor}/link', [Admin\VisitorController::class, 'link'])->middleware('can:visitors.link')->name('visitors.link');
         Route::delete('/visitors/{visitor}/link', [Admin\VisitorController::class, 'unlink'])->middleware('can:visitors.link')->name('visitors.unlink');
+        Route::post('/visitors/{visitor}/status', [Admin\VisitorController::class, 'status'])->middleware('can:visitors.status')->name('visitors.status');
     });
 
     Route::get('/visits', [Admin\VisitController::class, 'index'])->middleware('can:visits.view')->name('visits.index');
@@ -94,6 +95,17 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin.access'])
         Route::post('/pricing/settings/{type}', [Admin\PricingController::class, 'saveSetting'])
             ->whereIn('type', ['age-groups', 'time-slots', 'ticket-types', 'categories'])->name('pricing.settings.save');
         Route::resource('coefficients', Admin\CoefficientController::class)->except('index', 'show');
+    });
+
+    Route::get('/rentals', [Admin\RentalController::class, 'index'])->middleware('can:rentals.return')->name('rentals.index');
+    Route::post('/rentals/items', [Admin\RentalController::class, 'saveItem'])->middleware('can:rentals.manage')->name('rentals.items.save');
+    Route::post('/rentals/add', [Admin\RentalController::class, 'addToVisit'])->middleware('can:visits.create')->name('rentals.add');
+    Route::post('/rentals/{rental}/returned', [Admin\RentalController::class, 'markReturned'])->middleware('can:rentals.return')->name('rentals.returned');
+
+    Route::middleware('can:loyalty.manage')->group(function () {
+        Route::get('/loyalty', [Admin\LoyaltyController::class, 'index'])->name('loyalty.index');
+        Route::post('/loyalty/tiers', [Admin\LoyaltyController::class, 'saveTier'])->name('loyalty.tiers.save');
+        Route::post('/loyalty/rewards', [Admin\LoyaltyController::class, 'saveReward'])->name('loyalty.rewards.save');
     });
 
     Route::get('/users', [Admin\UserController::class, 'index'])->middleware('can:users.view')->name('users.index');

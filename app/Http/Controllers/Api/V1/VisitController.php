@@ -20,7 +20,7 @@ class VisitController extends Controller
         $request->validate(['from' => ['nullable', 'date'], 'to' => ['nullable', 'date']]);
 
         $visits = VisitorVisit::query()
-            ->with('visitor', 'ticketType', 'timeSlot', 'ageGroup', 'creator')
+            ->with('visitor', 'ticketType', 'timeSlot', 'ageGroup', 'creator', 'rentals')
             ->when($request->date('from'), fn ($q, $from) => $q->where('entered_at', '>=', $from->startOfDay()))
             ->when($request->date('to'), fn ($q, $to) => $q->where('entered_at', '<=', $to->endOfDay()))
             ->when($request->integer('visitor_id'), fn ($q, $id) => $q->where('visitor_id', $id))
@@ -35,7 +35,7 @@ class VisitController extends Controller
     {
         $visit = $entries->register($request->entryData(), $request->user());
 
-        return (new VisitResource($visit->load('visitor', 'ticketType', 'timeSlot', 'ageGroup', 'subscription')))
+        return (new VisitResource($visit->load('visitor', 'ticketType', 'timeSlot', 'ageGroup', 'subscription', 'rentals')))
             ->additional(['message' => __('Entrance registered for :name.', ['name' => $visit->visitor->full_name])])
             ->response()
             ->setStatusCode(201);
@@ -45,7 +45,7 @@ class VisitController extends Controller
     {
         DB::transaction(function () use ($visit) {
             // Give the entry back to the subscription it was taken from.
-            if ($visit->payment_method === 'subscription' && $visit->subscription && $visit->subscription->visits_used > 0) {
+            if ($visit->visitor_subscription_id && $visit->subscription && $visit->subscription->visits_used > 0) {
                 $visit->subscription->decrement('visits_used');
             }
             $visit->delete();

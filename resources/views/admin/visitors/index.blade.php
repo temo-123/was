@@ -12,7 +12,7 @@
     <div class="card">
         <div class="card-header">
             <form class="row g-2" method="GET">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <input name="search" value="{{ request('search') }}" class="form-control" placeholder="{{ __('Name, surname, ID number, phone, email…') }}" autofocus>
                 </div>
                 <div class="col-md-2">
@@ -23,6 +23,16 @@
                         @endforeach
                     </select>
                 </div>
+                @if ($tiers->isNotEmpty())
+                    <div class="col-md-2">
+                        <select name="status" class="form-select">
+                            <option value="">{{ __('All statuses') }}</option>
+                            @foreach ($tiers as $tier)
+                                <option value="{{ $tier->id }}" @selected(request('status') == $tier->id)>{{ $tier->local_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
                 <div class="col-md-2">
                     <select name="sort" class="form-select">
                         <option value="">{{ __('Sort by name') }}</option>
@@ -55,6 +65,7 @@
                             <a href="{{ route('admin.visitors.show', $visitor) }}" class="fw-semibold">{{ $visitor->full_name }}</a>
                             @if ($visitor->user)<i class="bi bi-person-check text-success" title="{{ __('Has an online account') }}"></i>@endif
                             @unless ($visitor->terms_accepted)<span class="badge text-bg-warning">{{ __('no terms') }}</span>@endunless
+                            @include('admin.partials.tier-badge')
                         </td>
                         <td>{{ $visitor->personal_id }}</td>
                         <td>{{ $visitor->ageAt() }}</td>

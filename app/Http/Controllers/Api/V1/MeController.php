@@ -16,7 +16,7 @@ class MeController extends Controller
         $visitor = $request->user()->visitor;
 
         return VisitResource::collection(
-            $visitor ? $visitor->visits()->with('ticketType', 'timeSlot')->latest('entered_at')->paginate(25) : collect()
+            $visitor ? $visitor->visits()->with('ticketType', 'timeSlot', 'rentals')->latest('entered_at')->paginate(25) : collect()
         );
     }
 

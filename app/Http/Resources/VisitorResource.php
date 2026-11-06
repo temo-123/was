@@ -24,6 +24,10 @@ class VisitorResource extends JsonResource
             'comment' => $this->comment,
             'visitor_category_id' => $this->visitor_category_id,
             'category' => $this->whenLoaded('category', fn () => $this->category?->only(['id', 'code', 'name', 'name_ka'])),
+            'tier' => $this->whenLoaded('tier', fn () => ($tier = $this->activeTier()) ? $tier->only(['id', 'name', 'name_ka', 'color']) + [
+                'discount_percent' => (float) $tier->discount_percent,
+                'until' => $this->client_tier_until?->toDateString(),
+            ] : null),
             'terms_accepted' => $this->terms_accepted,
             'terms_accepted_at' => $this->terms_accepted_at?->toIso8601String(),
             'user' => $this->whenLoaded('user', fn () => $this->user?->only(['id', 'name', 'email'])),

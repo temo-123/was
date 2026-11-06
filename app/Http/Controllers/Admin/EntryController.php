@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\RentalItem;
 use App\Models\TicketType;
 use App\Models\VisitorCategory;
 use App\Models\VisitorVisit;
@@ -20,6 +21,8 @@ class EntryController extends Controller
             'config' => [
                 'ticketTypes' => TicketType::where('is_active', true)->ordered()->get(['id', 'code', 'name', 'name_ka', 'duration_days']),
                 'categories' => VisitorCategory::where('is_active', true)->ordered()->get(['id', 'code', 'name', 'name_ka', 'is_default']),
+                'rentalItems' => RentalItem::where('is_active', true)->ordered()->get(['id', 'name', 'name_ka', 'price', 'has_sizes', 'is_returnable', 'stock'])
+                    ->map(fn (RentalItem $item) => $item->toArray() + ['price' => (float) $item->price]),
                 'paymentMethods' => array_values(array_diff(VisitorVisit::PAYMENT_METHODS, ['subscription', 'free'])),
                 'can' => [
                     'createVisitor' => $user->can('visitors.create'),

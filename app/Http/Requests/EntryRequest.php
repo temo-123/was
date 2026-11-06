@@ -31,6 +31,19 @@ class EntryRequest extends FormRequest
             'use_subscription' => ['boolean'],
             'price_override' => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'comment' => ['nullable', 'string', 'max:2000'],
+            ...self::rentalRules(),
+        ];
+    }
+
+    /** Rental gear + rewards, also used by the price preview (PricingController::quote). */
+    public static function rentalRules(): array
+    {
+        return [
+            'rentals' => ['nullable', 'array', 'max:20'],
+            'rentals.*.rental_item_id' => ['required', 'integer', Rule::exists('rental_items', 'id')->where('is_active', true)],
+            'rentals.*.quantity' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'rentals.*.size' => ['nullable', 'string', 'max:16'],
+            'apply_rewards' => ['boolean'],
         ];
     }
 
@@ -76,6 +89,8 @@ class EntryRequest extends FormRequest
         $data = $this->validated();
         $data['terms_accepted'] = $this->boolean('terms_accepted') || $this->boolean('visitor.terms_accepted');
         $data['use_subscription'] = $this->boolean('use_subscription', true);
+        $data['apply_rewards'] = $this->boolean('apply_rewards', true);
+        $data['rentals'] = array_values($data['rentals'] ?? []);
 
         if (empty($data['visitor_id'])) {
             $data['visitor'] = collect($data['visitor'])

@@ -10,6 +10,8 @@
         ['header' => __('Prices')],
         ['admin.pricing.index', 'bi-cash-coin', __('Price list'), 'pricing.view', ['admin.pricing.index', 'admin.coefficients.*']],
         ['admin.pricing.settings', 'bi-sliders', __('Age groups & hours'), 'pricing.manage', 'admin.pricing.settings'],
+        ['admin.rentals.index', 'bi-bag', __('Rental gear'), 'rentals.return', 'admin.rentals.*'],
+        ['admin.loyalty.index', 'bi-star', __('VIP & rewards'), 'loyalty.manage', 'admin.loyalty.*'],
         ['header' => __('Sport club')],
         ['admin.club.members.index', 'bi-person-vcard', __('Club members'), 'club.members.view', ['admin.club.members.*', 'admin.club.import.*']],
         ['admin.club.meetings.index', 'bi-qr-code', __('Meetings'), 'club.meetings.view', 'admin.club.meetings.*'],

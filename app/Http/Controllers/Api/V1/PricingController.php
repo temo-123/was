@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EntryRequest;
 use App\Http\Resources\SubscriptionResource;
 use App\Models\AgeGroup;
 use App\Models\PriceRule;
+use App\Models\RentalItem;
 use App\Models\TicketType;
 use App\Models\TimeSlot;
 use App\Models\Visitor;
@@ -38,6 +40,9 @@ class PricingController extends Controller
             'visitor_category_id' => ['nullable', 'exists:visitor_categories,id'],
             'ticket_type_id' => ['required', 'exists:ticket_types,id'],
             'at' => ['nullable', 'date'],
+            'use_subscription' => ['boolean'],
+            'price_override' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            ...EntryRequest::rentalRules(),
         ]);
 
         $at = isset($data['at']) ? Carbon::parse($data['at']) : now();
@@ -45,12 +50,23 @@ class PricingController extends Controller
         $age = $visitor ? $visitor->ageAt($at) : (int) Carbon::parse($data['birth_date'])->diffInYears($at);
         $categoryId = $data['visitor_category_id'] ?? $visitor?->visitor_category_id ?? VisitorCategory::default()?->id;
 
-        $result = $entries->preview($visitor, $age, $categoryId, TicketType::findOrFail($data['ticket_type_id']), $at);
+        $type = TicketType::findOrFail($data['ticket_type_id']);
+        $result = $entries->preview($visitor, $age, $categoryId, $type, $at);
+        $bill = $entries->checkout($visitor, $type, $result, [
+            'use_subscription' => $request->boolean('use_subscription', true),
+            'apply_rewards' => $request->boolean('apply_rewards', true),
+            'rentals' => array_values($data['rentals'] ?? []),
+            'price_override' => $data['price_override'] ?? null,
+        ], $at);
 
         return response()->json([
             'quote' => $result['quote']->toArray(),
             'subscription' => $result['subscription'] ? new SubscriptionResource($result['subscription']) : null,
             'amount' => $result['amount'],
+            'bill' => $bill->toArray(),
+            // Gear that comes back: how many pieces are out now (to warn when the gym runs out).
+            'gear_out' => RentalItem::where('is_active', true)->whereNotNull('stock')->get()
+                ->mapWithKeys(fn (RentalItem $item) => [$item->id => $item->outCount()]),
             'last_visit_at' => $visitor?->visits()->max('entered_at'),
         ]);
     }

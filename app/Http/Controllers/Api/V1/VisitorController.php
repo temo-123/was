@@ -36,7 +36,7 @@ class VisitorController extends Controller
 
         $visitors = mb_strlen($term) < 2 ? collect() : Visitor::query()
             ->search($term)
-            ->with(['category', 'subscriptions' => fn ($q) => $q->active()->with('ticketType', 'timeSlot')])
+            ->with(['category', 'tier', 'subscriptions' => fn ($q) => $q->active()->with('ticketType', 'timeSlot')])
             ->withCount('visits')
             ->withMax('visits', 'entered_at')
             ->orderBy('last_name')
@@ -55,7 +55,7 @@ class VisitorController extends Controller
 
     public function show(Visitor $visitor): VisitorResource
     {
-        return new VisitorResource($visitor->load(['category', 'user', 'subscriptions' => fn ($q) => $q->active()->with('ticketType', 'timeSlot')])->loadCount('visits'));
+        return new VisitorResource($visitor->load(['category', 'tier', 'user', 'subscriptions' => fn ($q) => $q->active()->with('ticketType', 'timeSlot')])->loadCount('visits'));
     }
 
     public function update(VisitorRequest $request, Visitor $visitor, VisitorLinker $linker): VisitorResource

@@ -39,7 +39,14 @@
                             <dt class="col-5">{{ __('Name') }}</dt><dd class="col-7">{{ $visitor->full_name }}</dd>
                             <dt class="col-5">{{ __('ID number') }}</dt><dd class="col-7">{{ $visitor->personal_id }}</dd>
                             <dt class="col-5">{{ __('Category') }}</dt><dd class="col-7">{{ $visitor->category?->local_name ?? '—' }}</dd>
-                            <dt class="col-5">{{ __('Visits') }}</dt><dd class="col-7">{{ $visitor->visits()->count() }}</dd>
+                            <dt class="col-5">{{ __('Visits') }}</dt><dd class="col-7">{{ $visitCount }}</dd>
+                            @if ($tier = $visitor->activeTier())
+                                <dt class="col-5">{{ __('Client status') }}</dt>
+                                <dd class="col-7">
+                                    @include('admin.partials.tier-badge')
+                                    @if ($visitor->client_tier_until)<small class="text-body-secondary d-block">{{ __('until :date', ['date' => $visitor->client_tier_until->format('d.m.Y')]) }}</small>@endif
+                                </dd>
+                            @endif
                         </dl>
                     @else
                         <p class="small text-body-secondary mb-0">
@@ -77,24 +84,55 @@
                     </div>
                 </div>
 
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header fw-semibold"><i class="bi bi-calendar-check me-1"></i> {{ __('Last visits') }}</div>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead><tr><th>{{ __('Date') }}</th><th>{{ __('Ticket') }}</th><th class="text-end">{{ __('Price') }}</th></tr></thead>
-                            <tbody>
-                            @forelse ($visits as $visit)
-                                <tr>
-                                    <td>{{ $visit->entered_at->format('d.m.Y H:i') }}</td>
-                                    <td>{{ $visit->ticketType?->local_name }}</td>
-                                    <td class="text-end">{{ $visit->payment_method === 'subscription' ? __('subscription') : number_format($visit->price, 2).' ₾' }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="3" class="text-body-secondary">{{ __('No visits yet.') }}</td></tr>
-                            @endforelse
-                            </tbody>
-                        </table>
+                @if ($nextReward)
+                    @php
+                        $every = $nextReward['reward']->every_visits;
+                    @endphp
+                    <div class="card shadow-sm mb-4 border-success-subtle">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-semibold"><i class="bi bi-gift text-success"></i> {{ __('Your next reward') }}: {{ $nextReward['reward']->describe() }}</span>
+                                <span class="badge text-bg-success">{{ trans_choice(':count visit left|:count visits left', $nextReward['in'], ['count' => $nextReward['in']]) }}</span>
+                            </div>
+                            <div class="progress" style="height: 10px" role="progressbar">
+                                <div class="progress-bar bg-success" style="width: {{ round(($every - $nextReward['in']) / $every * 100) }}%"></div>
+                            </div>
+                        </div>
                     </div>
+                @endif
+
+                @php
+                    $monthUrl = fn ($date) => route('profile.show', ['month' => $date->format('Y-m')]).'#visits';
+                    $dayUrl = fn ($date) => route('profile.show', ['month' => $date->format('Y-m'), 'day' => $date->toDateString()]).'#visits';
+                @endphp
+                <div class="card shadow-sm mb-4" id="visits">
+                    <div class="card-header fw-semibold"><i class="bi bi-calendar3 me-1"></i> {{ __('My visits') }}</div>
+                    <div class="card-body">
+                        @include('partials.calendar.year-strip', ['counts' => $calendar['yearCounts']])
+                        @include('partials.calendar.month', ['items' => $calendar['items'], 'dayView' => 'partials.calendar.visitor-day', 'selected' => $selectedDay])
+                        <div class="small mt-3">
+                            <b>{{ trans_choice(':count visit|:count visits', $calendar['monthVisits'], ['count' => $calendar['monthVisits']]) }}</b> {{ __('this month') }}
+                            · <b>{{ number_format($calendar['monthSpent'], 2) }} ₾</b> {{ __('spent') }}
+                        </div>
+                    </div>
+                    @if ($selectedDay)
+                        <div class="table-responsive border-top">
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>{{ __('Time') }}</th><th>{{ __('Ticket') }}</th><th class="text-end">{{ __('Price') }}</th></tr></thead>
+                                <tbody>
+                                @forelse ($calendar['items'][$selectedDay] ?? [] as $visit)
+                                    <tr>
+                                        <td>{{ $visit->entered_at->format('d.m.Y H:i') }}</td>
+                                        <td>{{ $visit->ticketType?->local_name }} <small class="text-body-secondary">{{ __('visit no. :number', ['number' => $visit->visit_number]) }}</small></td>
+                                        <td class="text-end">@include('admin.partials.visit-price')</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="3" class="text-body-secondary">{{ __('No visits on this day.') }}</td></tr>
+                                @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
             @endif
 

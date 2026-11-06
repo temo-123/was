@@ -60,6 +60,14 @@ return [
         'activity' => [
             'activity.view' => 'View the activity log',
         ],
+        'rentals' => [
+            'rentals.return' => 'See rented gear and mark it returned',
+            'rentals.manage' => 'Edit rental gear and its prices',
+        ],
+        'loyalty' => [
+            'visitors.status' => 'Give clients a status (VIP, Gold…)',
+            'loyalty.manage' => 'Edit client statuses, their discounts and visit rewards',
+        ],
         'club' => [
             'club.members.view' => 'View sport club members',
             'club.members.manage' => 'Add, edit, delete, import and export club members',
@@ -87,6 +95,7 @@ return [
                 'visits.view', 'visits.create',
                 'subscriptions.view', 'subscriptions.create',
                 'pricing.view',
+                'rentals.return',
             ],
         ],
         'user' => [

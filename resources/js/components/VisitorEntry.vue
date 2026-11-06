@@ -6,6 +6,7 @@ import { locale, t } from '../i18n';
 const props = defineProps({
     ticketTypes: { type: Array, required: true },
     categories: { type: Array, required: true },
+    rentalItems: { type: Array, default: () => [] },
     paymentMethods: { type: Array, required: true },
     can: { type: Object, required: true },
     urls: { type: Object, required: true },
@@ -34,6 +35,8 @@ const entry = reactive({
     terms_accepted: false,
     price_override: '',
     comment: '',
+    rentals: [], // [{ rental_item_id, quantity, size }]
+    apply_rewards: true,
 });
 
 const quote = ref(null);
@@ -162,6 +165,7 @@ function selectVisitor(v) {
     entry.visitor_category_id = v.visitor_category_id ?? defaultCategory?.id ?? null;
     entry.terms_accepted = v.terms_accepted;
     entry.use_subscription = true;
+    entry.apply_rewards = true;
     errors.value = {};
     success.value = null;
     refreshQuote();
@@ -211,7 +215,14 @@ function refreshQuote() {
 }
 
 async function loadQuote() {
-    const params = { ticket_type_id: entry.ticket_type_id, visitor_category_id: entry.visitor_category_id };
+    const params = {
+        ticket_type_id: entry.ticket_type_id,
+        visitor_category_id: entry.visitor_category_id,
+        use_subscription: entry.use_subscription ? 1 : 0,
+        apply_rewards: entry.apply_rewards ? 1 : 0,
+        rentals: entry.rentals.map((r) => ({ rental_item_id: r.rental_item_id, quantity: r.quantity, size: r.size || undefined })),
+    };
+    if (props.can.overridePrice && entry.price_override !== '' && entry.price_override !== null) params.price_override = entry.price_override;
     if (mode.value === 'selected' && visitor.value) {
         params.visitor_id = visitor.value.id;
     } else if (mode.value === 'new' && !birthDateError(newVisitor.birth_date)) {
@@ -223,7 +234,8 @@ async function loadQuote() {
 
     quoting.value = true;
     try {
-        const { data } = await axios.get(props.urls.quote, { params });
+        // indexes: rentals[0][rental_item_id]=… so Laravel reads one object per line
+        const { data } = await axios.get(props.urls.quote, { params, paramsSerializer: { indexes: true } });
         quote.value = data;
     } catch (e) {
         quote.value = null;
@@ -233,16 +245,43 @@ async function loadQuote() {
     }
 }
 
-watch(() => [entry.ticket_type_id, entry.visitor_category_id, newVisitor.birth_date], refreshQuote);
+watch(() => [entry.ticket_type_id, entry.visitor_category_id, newVisitor.birth_date, entry.use_subscription, entry.apply_rewards, entry.price_override], refreshQuote);
+watch(() => entry.rentals, refreshQuote, { deep: true });
+
+// --- rental gear --------------------------------------------------------------------------
+const itemById = (id) => props.rentalItems.find((item) => item.id === id);
+
+function addRental(item) {
+    const line = entry.rentals.find((r) => r.rental_item_id === item.id && !item.has_sizes);
+    if (line) line.quantity = Math.min(20, line.quantity + 1);
+    else entry.rentals.push({ rental_item_id: item.id, quantity: 1, size: '' });
+}
+
+function removeRental(index) {
+    entry.rentals.splice(index, 1);
+}
+
+/** Pieces of this gear in the gym that aren't out: null when the gym doesn't count them. */
+function gearLeft(item) {
+    if (item.stock === null || item.stock === undefined) return null;
+    const out = quote.value?.gear_out?.[item.id] ?? 0;
+    const chosen = entry.rentals.filter((r) => r.rental_item_id === item.id).reduce((sum, r) => sum + r.quantity, 0);
+    return item.stock - out - chosen;
+}
+
+const bill = computed(() => quote.value?.bill ?? null);
+/** A "free gear" reward for gear that isn't chosen yet: offer to add it. */
+const unusedGearRewards = computed(() => (bill.value?.rewards ?? [])
+    .filter((r) => r.type === 'free_rental' && r.rental_item_id && itemById(r.rental_item_id)
+        && !entry.rentals.some((line) => line.rental_item_id === r.rental_item_id)));
 
 const selectedTicket = computed(() => props.ticketTypes.find((ticket) => ticket.id === entry.ticket_type_id));
 const coveredBySubscription = computed(() => !!quote.value?.subscription && entry.use_subscription && !selectedTicket.value?.duration_days);
 
+/** Entry + rental gear − discounts, as the server calculated it (Checkout). */
 const amountToPay = computed(() => {
     if (!quote.value) return null;
-    if (coveredBySubscription.value) return 0;
-    if (entry.price_override !== '' && entry.price_override !== null) return Number(entry.price_override);
-    return quote.value.quote.available ? quote.value.quote.price : null;
+    return bill.value?.total ?? null;
 });
 
 const age = computed(() => (mode.value === 'selected' ? visitor.value?.age : quote.value?.quote.age));
@@ -331,6 +370,8 @@ async function submit() {
         terms_accepted: entry.terms_accepted,
         price_override: props.can.overridePrice && entry.price_override !== '' ? entry.price_override : null,
         comment: entry.comment || null,
+        rentals: entry.rentals.map((r) => ({ rental_item_id: r.rental_item_id, quantity: r.quantity, size: r.size || null })),
+        apply_rewards: entry.apply_rewards,
     };
     if (mode.value === 'selected') payload.visitor_id = visitor.value.id;
     else payload.visitor = { ...newVisitor, visitor_category_id: entry.visitor_category_id };
@@ -357,6 +398,8 @@ function resetAfterSuccess() {
     entry.price_override = '';
     entry.comment = '';
     entry.use_subscription = true;
+    entry.rentals = [];
+    entry.apply_rewards = true;
     entry.ticket_type_id = props.ticketTypes[0]?.id ?? null;
     entry.payment_method = props.paymentMethods[0] ?? 'cash';
     setTimeout(() => searchInput.value?.focus(), 0);
@@ -385,6 +428,8 @@ const fmtDate = (v) => (v ? new Date(v).toLocaleDateString(dateLocale) : '—');
 const isToday = (v) => v && new Date(v).toDateString() === new Date().toDateString();
 // Price list names: Georgian from name_ka when the site is in Georgian.
 const localName = (item) => (item ? (locale === 'ka' && item.name_ka ? item.name_ka : item.name) : null);
+const percent = (v) => `−${Number(v).toFixed(2).replace(/\.?0+$/, '')}%`;
+const tierPill = (tier) => ({ background: tier.color, color: '#111' });
 const ticketLabel = localName;
 const categoryLabel = localName;
 const fieldError = (name) => errors.value[name]?.[0]
@@ -399,7 +444,8 @@ const fieldError = (name) => errors.value[name]?.[0]
                 <div>
                     <i class="bi bi-check-circle-fill me-2"></i>{{ success.message }}
                     <template v-if="success.visit">
-                        <strong class="ms-2">{{ money(success.visit.price) }}</strong>
+                        <strong class="ms-2">{{ money(success.visit.total_price) }}</strong>
+                        <span v-if="success.visit.rentals?.length" class="ms-2 small"><i class="bi bi-bag"></i> {{ success.visit.rentals.map((r) => localName(r) + (r.size ? ' ' + r.size : '')).join(', ') }}</span>
                         <span v-if="success.visit.payment_method === 'subscription'" class="badge text-bg-info ms-2">{{ t('subscription') }}</span>
                     </template>
                     <span v-else class="ms-1">{{ t('Now choose the ticket on the right and register the entrance.') }}</span>
@@ -436,7 +482,10 @@ const fieldError = (name) => errors.value[name]?.[0]
                         >
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <div class="fw-semibold">{{ v.full_name }}</div>
+                                    <div class="fw-semibold">
+                                        {{ v.full_name }}
+                                        <span v-if="v.tier" class="badge rounded-pill ms-1" :style="tierPill(v.tier)"><i class="bi bi-star-fill"></i> {{ localName(v.tier) }}</span>
+                                    </div>
                                     <small class="text-body-secondary">
                                         {{ t('ID') }} {{ v.personal_id }} · {{ t(':age y', { age: v.age }) }} · {{ v.phone }}
                                     </small>
@@ -466,6 +515,9 @@ const fieldError = (name) => errors.value[name]?.[0]
             <div v-else-if="mode === 'selected' && visitor" class="card card-success card-outline">
                 <div class="card-header d-flex align-items-center">
                     <h3 class="card-title mb-0"><i class="bi bi-person-check me-1"></i> {{ visitor.full_name }}</h3>
+                    <span v-if="visitor.tier" class="badge rounded-pill ms-2" :style="tierPill(visitor.tier)">
+                        <i class="bi bi-star-fill"></i> {{ localName(visitor.tier) }} {{ visitor.tier.discount_percent ? percent(visitor.tier.discount_percent) : '' }}
+                    </span>
                     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" @click="backToSearch">
                         <i class="bi bi-arrow-left"></i> {{ t('Change') }}
                     </button>
@@ -577,7 +629,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                 <ul class="list-group list-group-flush">
                     <li v-for="r in recent" :key="r.id" class="list-group-item d-flex justify-content-between">
                         <span>{{ fmtDateTime(r.entered_at) }} — {{ r.visitor.full_name }}</span>
-                        <span>{{ localName(r.ticket_type) }} · <strong>{{ money(r.price) }}</strong></span>
+                        <span>{{ localName(r.ticket_type) }}<template v-if="r.rentals?.length"> + <i class="bi bi-bag"></i> {{ r.rentals.length }}</template> · <strong>{{ money(r.total_price) }}</strong></span>
                     </li>
                 </ul>
             </div>
@@ -602,6 +654,48 @@ const fieldError = (name) => errors.value[name]?.[0]
                         <select v-model="entry.visitor_category_id" class="form-select mb-3">
                             <option v-for="c in categories" :key="c.id" :value="c.id">{{ categoryLabel(c) }}</option>
                         </select>
+
+                        <!-- Rental gear -->
+                        <template v-if="rentalItems.length">
+                            <label class="form-label">{{ t('Rental gear') }} <small class="text-body-secondary">({{ t('if they need it') }})</small></label>
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <button v-for="item in rentalItems" :key="item.id" type="button" class="btn btn-sm btn-outline-secondary" @click="addRental(item)">
+                                    <i class="bi bi-plus-lg"></i> {{ localName(item) }} · {{ money(item.price) }}
+                                    <span v-if="gearLeft(item) !== null" :class="['badge ms-1', gearLeft(item) > 0 ? 'text-bg-light' : 'text-bg-danger']">{{ t(':count left', { count: Math.max(0, gearLeft(item)) }) }}</span>
+                                </button>
+                            </div>
+                            <ul v-if="entry.rentals.length" class="list-group mb-3">
+                                <li v-for="(line, index) in entry.rentals" :key="index" class="list-group-item d-flex align-items-center gap-2 py-2">
+                                    <i class="bi bi-bag text-primary"></i>
+                                    <span class="me-auto">{{ localName(itemById(line.rental_item_id)) }}</span>
+                                    <input v-if="itemById(line.rental_item_id)?.has_sizes" v-model.trim="line.size" class="form-control form-control-sm" style="width: 72px" maxlength="16" :placeholder="t('Size')">
+                                    <div class="input-group input-group-sm" style="width: 104px">
+                                        <button type="button" class="btn btn-outline-secondary" :disabled="line.quantity <= 1" @click="line.quantity--"><i class="bi bi-dash"></i></button>
+                                        <span class="input-group-text flex-grow-1 justify-content-center">{{ line.quantity }}</span>
+                                        <button type="button" class="btn btn-outline-secondary" :disabled="line.quantity >= 20" @click="line.quantity++"><i class="bi bi-plus"></i></button>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0" :title="t('Remove')" @click="removeRental(index)"><i class="bi bi-x-lg"></i></button>
+                                </li>
+                            </ul>
+                        </template>
+
+                        <!-- Visit reward (every N-th visit) -->
+                        <div v-if="bill?.rewards?.length" class="alert alert-success py-2 mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-gift-fill fs-4"></i>
+                                <div class="me-auto">
+                                    <div class="fw-semibold">{{ t('Visit no. :number — a reward!', { number: bill.visit_number }) }}</div>
+                                    <div v-for="r in bill.rewards" :key="r.id" class="small">{{ r.name }}: {{ r.text }}</div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input id="apply-rewards" v-model="entry.apply_rewards" class="form-check-input" type="checkbox">
+                                    <label for="apply-rewards" class="form-check-label small">{{ t('Give it') }}</label>
+                                </div>
+                            </div>
+                            <button v-for="r in entry.apply_rewards ? unusedGearRewards : []" :key="`add-${r.id}`" type="button" class="btn btn-sm btn-success mt-2" @click="addRental(itemById(r.rental_item_id))">
+                                <i class="bi bi-bag-plus"></i> {{ t('Add the free :item', { item: localName(itemById(r.rental_item_id)) }) }}
+                            </button>
+                        </div>
 
                         <!-- Price -->
                         <div class="border rounded p-3 mb-3 bg-body-tertiary">
@@ -629,14 +723,51 @@ const fieldError = (name) => errors.value[name]?.[0]
                                     {{ quote.quote.message }}
                                 </div>
 
-                                <div class="d-flex align-items-end justify-content-between mt-2">
+                                <!-- What the price is made of -->
+                                <table v-if="bill" class="table table-sm table-borderless small mb-0 mt-2 bill">
+                                    <tbody>
+                                    <tr>
+                                        <td>
+                                            {{ t('Entry') }}
+                                            <span class="text-body-secondary">· {{ t('visit no. :number', { number: bill.visit_number }) }}</span>
+                                            <div v-if="!coveredBySubscription && quote.quote.available" class="text-body-secondary">
+                                                {{ money(quote.quote.base_price) }}<span v-if="quote.quote.coefficient !== 1"> × {{ quote.quote.coefficient }}</span>
+                                                <span v-for="c in quote.quote.coefficients.filter((c) => c.coefficient !== 1)" :key="c.id"> · {{ c.name }} × {{ c.coefficient }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-end">{{ coveredBySubscription ? t('subscription') : bill.entry_base === null ? '—' : money(bill.entry_base) }}</td>
+                                    </tr>
+                                    <tr v-if="bill.tier_discount > 0" class="text-success">
+                                        <td><span class="badge rounded-pill" :style="tierPill(bill.tier)">{{ bill.tier.name }}</span> {{ percent(bill.tier_percent) }}</td>
+                                        <td class="text-end">−{{ money(bill.tier_discount) }}</td>
+                                    </tr>
+                                    <tr v-if="bill.reward_discount > 0" class="text-success">
+                                        <td><i class="bi bi-gift"></i> {{ t('Reward') }}</td>
+                                        <td class="text-end">−{{ money(bill.reward_discount) }}</td>
+                                    </tr>
+                                    <tr v-if="bill.overridden" class="text-warning-emphasis">
+                                        <td><i class="bi bi-pencil-square"></i> {{ t('Manual price') }}</td>
+                                        <td class="text-end">{{ money(bill.entry) }}</td>
+                                    </tr>
+                                    <tr v-for="(line, i) in bill.rentals" :key="i">
+                                        <td>
+                                            <i :class="['bi', line.is_reward ? 'bi-gift text-success' : 'bi-bag']"></i>
+                                            {{ localName(line) }}{{ line.size ? ` ${line.size}` : '' }}{{ line.quantity > 1 ? ` ×${line.quantity}` : '' }}
+                                            <span v-if="line.is_reward" class="text-success">({{ t('free') }})</span>
+                                            <span v-else-if="line.discount_amount > 0" class="text-success">(−{{ money(line.discount_amount) }})</span>
+                                        </td>
+                                        <td class="text-end">{{ money(line.price) }}</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+
+                                <div class="d-flex align-items-end justify-content-between mt-2 pt-2 border-top">
                                     <div class="small text-body-secondary">
-                                        <template v-if="coveredBySubscription">{{ t('Covered by subscription') }}</template>
-                                        <template v-else-if="quote.quote.available">
-                                            {{ money(quote.quote.base_price) }}
-                                            <span v-if="quote.quote.coefficient !== 1"> × {{ quote.quote.coefficient }}</span>
-                                            <div v-for="c in quote.quote.coefficients.filter((c) => c.coefficient !== 1)" :key="c.id">{{ c.name }}: × {{ c.coefficient }}</div>
-                                        </template>
+                                        <template v-if="coveredBySubscription && !bill?.rental_total">{{ t('Covered by subscription') }}</template>
+                                        <template v-else>{{ t('To pay') }}</template>
+                                        <div v-if="bill?.next_reward && !bill.rewards.length" class="text-success">
+                                            <i class="bi bi-gift"></i> {{ t('Next reward in :count visits', { count: bill.next_reward.in }) }}
+                                        </div>
                                     </div>
                                     <div class="entry-price" :class="amountToPay === null ? 'text-body-secondary' : 'text-success'">
                                         {{ amountToPay === null ? '—' : money(amountToPay) }}
@@ -645,7 +776,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                             </template>
                         </div>
 
-                        <template v-if="!coveredBySubscription && amountToPay !== 0">
+                        <template v-if="amountToPay > 0">
                             <label class="form-label">{{ t('Payment') }}</label>
                             <div class="btn-group w-100 mb-3" role="group">
                                 <template v-for="m in paymentMethods" :key="m">
@@ -656,7 +787,7 @@ const fieldError = (name) => errors.value[name]?.[0]
                         </template>
 
                         <div v-if="can.overridePrice && !coveredBySubscription" class="mb-3">
-                            <label class="form-label">{{ t('Manual price') }} <small class="text-body-secondary">({{ t('leave empty to use the calculated one') }})</small></label>
+                            <label class="form-label">{{ t('Manual entry price') }} <small class="text-body-secondary">({{ t('leave empty to use the calculated one; gear is added') }})</small></label>
                             <div class="input-group">
                                 <input v-model="entry.price_override" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': fieldError('price_override') }" />
                                 <span class="input-group-text">₾</span>
