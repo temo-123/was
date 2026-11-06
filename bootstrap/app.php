@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\TipsKioskPort;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -21,6 +22,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // A tunnel (cloudflared / ngrok) running on this computer forwards https requests as http:
         // trust its X-Forwarded-* headers so links, forms and assets use https and the public host.
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
+
+        // On the tablet's port (TIPS_PORT) only the tech tips are reachable.
+        $middleware->prepend(TipsKioskPort::class);
+        // The tablet stays open for days, longer than its CSRF token lives; counting a read changes nothing important.
+        $middleware->validateCsrfTokens(except: ['tips/*/viewed']);
 
         $middleware->alias(['active' => EnsureUserIsActive::class]);
         $middleware->web(append: [SetLocale::class, EnsureUserIsActive::class]);

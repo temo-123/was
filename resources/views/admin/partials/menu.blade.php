@@ -13,6 +13,8 @@
         ['header' => __('Sport club')],
         ['admin.club.members.index', 'bi-person-vcard', __('Club members'), 'club.members.view', ['admin.club.members.*', 'admin.club.import.*']],
         ['admin.club.meetings.index', 'bi-qr-code', __('Meetings'), 'club.meetings.view', 'admin.club.meetings.*'],
+        ['header' => __('Tablet in the gym')],
+        ['admin.tech-tips.index', 'bi-lightbulb', __('Tech tips'), 'tips.view', 'admin.tech-tips.*'],
         ['header' => __('Access')],
         ['admin.users.index', 'bi-person-badge', __('Users'), 'users.view', 'admin.users.*'],
         ['admin.roles.index', 'bi-shield-lock', __('Roles'), 'roles.view', 'admin.roles.*'],

@@ -66,6 +66,10 @@ return [
             'club.meetings.view' => 'View club meetings and attendance',
             'club.meetings.manage' => 'Create meetings, show the check-in QR code and edit attendance',
         ],
+        'tips' => [
+            'tips.view' => 'View tech tips for the gym tablet',
+            'tips.manage' => 'Write, edit, publish and delete tech tips',
+        ],
     ],
 
     'roles' => [

@@ -30,13 +30,14 @@ class LocaleTest extends TestCase
         $member = ClubMember::factory()->create();
         $meeting = ClubMeeting::create(['title' => 'Monthly', 'starts_at' => now(), 'is_open' => true]);
 
-        foreach (['/', '/terms', '/privacy', '/login', '/register', '/forgot-password', "/m/{$meeting->token}"] as $url) {
+        foreach (['/', '/terms', '/privacy', '/login', '/register', '/forgot-password', "/m/{$meeting->token}", '/tips'] as $url) {
             $this->withUnencryptedCookie('locale', 'ka')->get($url)->assertOk()->assertSee('lang="ka"', false);
         }
         foreach ([
             '/admin', '/admin/entry', '/admin/visitors', '/admin/visits', '/admin/subscriptions', '/admin/pricing', '/admin/users',
             '/admin/roles', '/admin/activity', '/admin/club/members', "/admin/club/members/{$member->id}/edit", '/admin/club/import',
             '/admin/club/meetings', "/admin/club/meetings/{$meeting->id}", "/admin/club/meetings/{$meeting->id}/screen",
+            '/admin/tech-tips', '/admin/tech-tips/create',
         ] as $url) {
             $this->actingAs($admin)->withUnencryptedCookie('locale', 'ka')->get($url)->assertOk();
         }

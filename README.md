@@ -1,4 +1,4 @@
-# Climbing Gym — management system
+# Climbers Hub — climbing gym management system
 
 Laravel 13 + Vue 3 + Bootstrap 5 (AdminLTE 4 admin panel), MySQL.
 

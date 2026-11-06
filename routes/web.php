@@ -10,6 +10,7 @@ use App\Http\Controllers\Club\CheckinController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Tips\KioskController;
 use Illuminate\Support\Facades\Route;
 
 // --- Public pages --------------------------------------------------------------------------
@@ -24,6 +25,14 @@ Route::post('/m/{meeting:token}', [CheckinController::class, 'store'])->middlewa
 Route::post('/m/{meeting:token}/forget', [CheckinController::class, 'forget'])->name('club.checkin.forget');
 Route::get('/m/{meeting:token}/profile', [CheckinController::class, 'profile'])->name('club.checkin.profile');
 Route::post('/m/{meeting:token}/profile', [CheckinController::class, 'updateProfile'])->middleware('throttle:20,1')->name('club.checkin.profile.update');
+
+// --- Tech tips on the gym tablet (no login; the only thing reachable on the TIPS_PORT port) -------
+Route::prefix('tips')->name('tips.')->group(function () {
+    Route::get('/', [KioskController::class, 'index'])->name('index');
+    Route::get('/data', [KioskController::class, 'data'])->name('data');
+    Route::get('/media/{file}', [KioskController::class, 'media'])->where('file', \App\Services\Tips\TipMedia::FILE_PATTERN)->name('media');
+    Route::post('/{tip}/viewed', [KioskController::class, 'viewed'])->middleware('throttle:120,1')->name('viewed');
+});
 
 // --- Authentication ------------------------------------------------------------------------
 Route::middleware('guest')->group(function () {
@@ -141,6 +150,18 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin.access'])
             Route::get('/meetings/{meeting}', [Admin\Club\MeetingController::class, 'show'])->name('meetings.show');
             Route::get('/meetings/{meeting}/export', [Admin\Club\MeetingController::class, 'export'])->name('meetings.export');
         });
+    });
+
+    Route::get('/tech-tips', [Admin\TechTipController::class, 'index'])->middleware('can:tips.view')->name('tech-tips.index');
+    Route::middleware('can:tips.manage')->group(function () {
+        Route::get('/tech-tips/create', [Admin\TechTipController::class, 'create'])->name('tech-tips.create');
+        Route::post('/tech-tips', [Admin\TechTipController::class, 'store'])->name('tech-tips.store');
+        Route::match(['post', 'put'], '/tech-tips/preview', [Admin\TechTipController::class, 'preview'])->name('tech-tips.preview'); // PUT: from the edit form
+        Route::post('/tech-tips/upload', [Admin\TechTipController::class, 'upload'])->name('tech-tips.upload');
+        Route::get('/tech-tips/{tip}/edit', [Admin\TechTipController::class, 'edit'])->name('tech-tips.edit');
+        Route::put('/tech-tips/{tip}', [Admin\TechTipController::class, 'update'])->name('tech-tips.update');
+        Route::delete('/tech-tips/{tip}', [Admin\TechTipController::class, 'destroy'])->name('tech-tips.destroy');
+        Route::post('/tech-tips/{tip}/toggle', [Admin\TechTipController::class, 'toggle'])->name('tech-tips.toggle');
     });
 
     Route::get('/activity', Admin\ActivityLogController::class)->middleware('can:activity.view')->name('activity');
