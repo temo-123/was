@@ -83,6 +83,11 @@ class KioskController extends Controller
         $path = TipMedia::DIR.'/'.$file;
         abort_unless(Storage::disk('local')->exists($path), 404);
 
-        return response()->file(Storage::disk('local')->path($path), ['Cache-Control' => 'public, max-age=31536000, immutable']);
+        $headers = ['Cache-Control' => 'public, max-age=31536000, immutable', 'X-Content-Type-Options' => 'nosniff'];
+        if (str_ends_with($file, '.svg')) { // a drawing opened on its own: nothing in it may run or load
+            $headers += ['Content-Type' => 'image/svg+xml', 'Content-Security-Policy' => "default-src 'none'; style-src 'unsafe-inline'; img-src data:"];
+        }
+
+        return response()->file(Storage::disk('local')->path($path), $headers);
     }
 }

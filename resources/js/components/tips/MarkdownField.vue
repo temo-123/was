@@ -20,6 +20,28 @@ const fileInput = ref(null);
 const uploading = ref(false);
 const uploadError = ref(null);
 let position = 'full';
+const linkOpen = ref(false);
+const link = ref('');
+const linkPosition = ref('full');
+const linkInput = ref(null);
+
+function openLink() {
+    linkOpen.value = true;
+    uploadError.value = null;
+    nextTick(() => linkInput.value?.focus());
+}
+
+/** Picture from a link: the server downloads it (own copy), then it goes into the text like an uploaded one. */
+async function insertFromLink() {
+    const address = link.value.trim();
+    if (!address) return;
+    position = linkPosition.value;
+    await insertPicture(null, address);
+    if (!uploadError.value) {
+        linkOpen.value = false;
+        link.value = '';
+    }
+}
 
 function apply(change) {
     const el = area.value;
@@ -39,12 +61,13 @@ function choosePicture(where) {
     fileInput.value.click();
 }
 
-async function insertPicture(file) {
-    if (!file) return;
+async function insertPicture(file, url = null) {
+    if (!file && !url) return;
     uploadError.value = null;
     uploading.value = true;
     const data = new FormData();
-    data.append('file', file);
+    if (file) data.append('file', file);
+    else data.append('url', url);
     try {
         const response = await window.axios.post(props.config.uploadUrl, data);
         const title = position === 'full' ? '' : ` "${position}"`;
@@ -56,10 +79,10 @@ async function insertPicture(file) {
             return [(before ? `${before}\n\n` : '') + tag + (after ? `\n\n${after}` : '\n'), start + 2, start + 2 + t('caption').length];
         });
     } catch (e) {
-        uploadError.value = e.response?.data?.errors?.file?.[0] ?? e.response?.data?.message ?? t('Upload failed. Try again.');
+        uploadError.value = e.response?.data?.errors?.file?.[0] ?? e.response?.data?.errors?.url?.[0] ?? e.response?.data?.message ?? t('Upload failed. Try again.');
     } finally {
         uploading.value = false;
-        fileInput.value.value = '';
+        if (fileInput.value) fileInput.value.value = '';
     }
 }
 
@@ -92,10 +115,21 @@ const prefix = (make) => apply((v, s, e) => {
                     <li><button type="button" class="dropdown-item" @click="choosePicture('full')"><i class="bi bi-image"></i> {{ t('Picture, full width') }}</button></li>
                     <li><button type="button" class="dropdown-item" @click="choosePicture('left')"><i class="bi bi-text-indent-left"></i> {{ t('Small picture, left of the text') }}</button></li>
                     <li><button type="button" class="dropdown-item" @click="choosePicture('right')"><i class="bi bi-text-indent-right"></i> {{ t('Small picture, right of the text') }}</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button type="button" class="dropdown-item" @click="openLink"><i class="bi bi-link-45deg"></i> {{ t('Picture from a link') }}</button></li>
                 </ul>
             </template>
         </div>
-        <input v-if="config" ref="fileInput" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif" @change="insertPicture($event.target.files[0])">
+        <input v-if="config" ref="fileInput" type="file" class="d-none" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml" @change="insertPicture($event.target.files[0])">
+        <div v-if="config && linkOpen" class="input-group input-group-sm mb-1">
+            <input ref="linkInput" v-model="link" type="url" class="form-control" placeholder="https://…/picture.jpg"
+                   :disabled="uploading" @keydown.enter.prevent="insertFromLink" @keydown.esc.prevent="linkOpen = false">
+            <select v-model="linkPosition" class="form-select flex-grow-0 w-auto" :disabled="uploading">
+                <option v-for="(label, key) in POSITIONS" :key="key" :value="key">{{ label }}</option>
+            </select>
+            <button type="button" class="btn btn-primary" :disabled="uploading || !link.trim()" @click="insertFromLink">{{ t('Add') }}</button>
+            <button type="button" class="btn btn-outline-secondary" :title="t('Cancel')" @click="linkOpen = false"><i class="bi bi-x-lg"></i></button>
+        </div>
         <textarea ref="area" class="form-control" :rows="rows" :lang="lang" :placeholder="placeholder"
                   :value="modelValue" @input="emit('update:modelValue', $event.target.value)"></textarea>
         <div v-if="uploadError" class="small text-danger mt-1"><i class="bi bi-exclamation-circle"></i> {{ uploadError }}</div>

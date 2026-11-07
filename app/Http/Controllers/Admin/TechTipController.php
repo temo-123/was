@@ -119,13 +119,30 @@ class TechTipController extends Controller
     /** The editor uploads every picture / video right away and keeps only its name. */
     public function upload(Request $request, TipMedia $media): JsonResponse
     {
+        // "Picture from a link": the server downloads it, then it is stored like an upload.
+        if (! $request->hasFile('file') && $request->filled('url')) {
+            $request->validate(['url' => ['required', 'string', 'max:2048', 'url:http,https']]);
+            $file = $media->download($request->input('url'), $error);
+            if (! $file) {
+                return response()->json(['message' => $error, 'errors' => ['url' => [$error]]], 422);
+            }
+            $path = $media->store($file);
+            @unlink($file->getRealPath());
+
+            return response()->json(['src' => basename($path), 'url' => $media->url($path)]);
+        }
+
         $video = $request->input('kind') === 'video';
         $request->validate(['file' => $video
             ? ['required', 'file', 'mimes:mp4,webm', 'max:'.(config('tips.video_max_mb') * 1024)]
-            : ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:12288'],
+            : ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:12288'],
         ]);
 
-        $path = $media->store($request->file('file'));
+        try {
+            $path = $media->store($request->file('file'));
+        } catch (\InvalidArgumentException) {
+            return response()->json(['message' => __('The file is not a picture.'), 'errors' => ['file' => [__('The file is not a picture.')]]], 422);
+        }
 
         return response()->json(['src' => basename($path), 'url' => $media->url($path)]);
     }

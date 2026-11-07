@@ -949,5 +949,14 @@
     "paid": "გადახდილი",
     "gear": "აღჭურვილობა",
     "reward": "საჩუქარი",
-    "status discount": "სტატუსის ფასდაკლება"
+    "status discount": "სტატუსის ფასდაკლება",
+    "Picture from a link": "სურათი ბმულიდან",
+    "or paste a link": "ან ჩასვით ბმული",
+    "Use a public http(s) link to a picture.": "გამოიყენეთ სურათის საჯარო http(s) ბმული.",
+    "Could not download the picture from this link.": "ამ ბმულიდან სურათის ჩამოტვირთვა ვერ მოხერხდა.",
+    "Mountaineering": "ალპინიზმი",
+    "Multi-pitch climbing": "მრავალმონაკვეთიანი ცოცვა",
+    "Ice climbing": "ყინულზე ცოცვა",
+    "The link is not a picture (JPG, PNG, WebP, GIF or SVG).": "ბმული არ არის სურათი (JPG, PNG, WebP, GIF ან SVG).",
+    "The file is not a picture.": "ფაილი არ არის სურათი."
 }

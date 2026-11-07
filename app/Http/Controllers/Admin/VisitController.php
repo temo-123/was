@@ -8,9 +8,11 @@ use App\Models\TicketType;
 use App\Models\TimeSlot;
 use App\Models\VisitorVisit;
 use App\Services\VisitCalendar;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -54,15 +56,15 @@ class VisitController extends Controller
     private function calendar(Request $request, VisitCalendar $calendar): View
     {
         $month = $calendar->month($request);
-        $from = $month->copy()->startOfMonth()->startOfWeek(\Carbon\CarbonInterface::MONDAY);
-        $to = $month->copy()->endOfMonth()->endOfWeek(\Carbon\CarbonInterface::SUNDAY)->endOfDay();
+        $from = $month->copy()->startOfMonth()->startOfWeek(CarbonInterface::MONDAY);
+        $to = $month->copy()->endOfMonth()->endOfWeek(CarbonInterface::SUNDAY)->endOfDay();
 
         $days = $this->filtered($request)
             ->whereBetween('entered_at', [$from, $to])
             ->selectRaw('DATE(entered_at) as day, COUNT(*) as visits, COALESCE(SUM(total_price), 0) as revenue')
             ->groupBy('day')
             ->get()
-            ->keyBy(fn ($row) => \Illuminate\Support\Carbon::parse($row->day)->toDateString());
+            ->keyBy(fn ($row) => Carbon::parse($row->day)->toDateString());
         $inMonth = $days->filter(fn ($row, $day) => str_starts_with($day, $month->format('Y-m')));
 
         return view('admin.visits.index', $this->filterOptions() + [

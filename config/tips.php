@@ -30,6 +30,9 @@ return [
         'health' => ['label' => 'Warm-up & injuries', 'icon' => 'bi-heart-pulse', 'color' => '#ff5d73'],
         'gear' => ['label' => 'Gear', 'icon' => 'bi-backpack', 'color' => '#2fd1c5'],
         'etiquette' => ['label' => 'Gym etiquette', 'icon' => 'bi-people', 'color' => '#c9d16b'],
+        'mountaineering' => ['label' => 'Mountaineering', 'icon' => 'bi-compass', 'color' => '#8fb4ff'],
+        'multipitch' => ['label' => 'Multi-pitch climbing', 'icon' => 'bi-layers', 'color' => '#ffa36b'],
+        'ice' => ['label' => 'Ice climbing', 'icon' => 'bi-snow', 'color' => '#7fe3ff'],
     ],
 
     'levels' => [

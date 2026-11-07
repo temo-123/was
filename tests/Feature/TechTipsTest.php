@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Tips\KioskController;
 use App\Models\TechTip;
+use App\Models\TechTipArticle;
 use App\Models\User;
 use App\Services\Tips\TipMedia;
+use Database\Seeders\TechTipSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -120,6 +123,122 @@ class TechTipsTest extends TestCase
         $this->actingAs($this->admin)->postJson('/admin/tech-tips/upload', ['file' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])
             ->assertUnprocessable();
         $this->get('/tips/media/../../.env')->assertNotFound();
+    }
+
+    public function test_a_picture_can_come_from_a_link(): void
+    {
+        ob_start();
+        imagepng(imagecreatetruecolor(2000, 1000));
+        $png = ob_get_clean();
+        Http::fake([
+            '93.184.215.14/p.png' => Http::response($png, 200, ['Content-Type' => 'image/png']),
+            '93.184.215.14/page' => Http::response('<html>not a picture</html>', 200, ['Content-Type' => 'text/html']),
+            '*' => Http::response('', 404),
+        ]);
+
+        $src = $this->actingAs($this->admin)->postJson('/admin/tech-tips/upload', ['url' => 'http://93.184.215.14/p.png'])
+            ->assertOk()->json('src');
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{32}\.(webp|jpg)$/', $src);
+        $this->assertSame(1600, getimagesizefromstring(Storage::disk('local')->get("tech-tips/$src"))[0]);
+
+        foreach (['http://93.184.215.14/page', 'http://93.184.215.14/missing.png', 'http://127.0.0.1/p.png',
+            'http://192.168.1.5/p.png', 'file:///etc/passwd', 'not a link'] as $url) {
+            $this->actingAs($this->admin)->postJson('/admin/tech-tips/upload', ['url' => $url])
+                ->assertUnprocessable()->assertJsonValidationErrors('url');
+        }
+        Http::assertSentCount(3); // private addresses are never requested
+        Http::assertSent(fn ($request) => str_contains($request->header('User-Agent')[0] ?? '', 'Mozilla')); // CDNs refuse clients without one
+    }
+
+    public function test_the_seeder_replaces_all_tips(): void
+    {
+        $old = $this->tip(['image' => 'tech-tips/'.$this->upload()]);
+        $oldFile = $old->image;
+        $this->seed(TechTipSeeder::class);
+
+        $this->assertModelMissing($old);
+        $this->assertFalse(Storage::disk('local')->exists($oldFile)); // old pictures are deleted too
+        $this->assertSame(0, TechTipArticle::whereNotIn('tech_tip_id', TechTip::pluck('id'))->count());
+        $this->assertSame(count(json_decode(file_get_contents(database_path('seeders/data/tech-tips.json')), true)), TechTip::count());
+        $this->assertSame(0, TechTip::doesntHave('slides')->count());
+        $this->assertSame(0, TechTipArticle::where('locale', 'ka')->count() - TechTip::count()); // every tip in Georgian
+        $this->assertNotNull(TechTip::whereHas('slides', fn ($q) => $q->whereNotNull('link_tip_id'))->first()); // "link": "key" resolved
+        $this->get('/tips')->assertOk();
+    }
+
+    public function test_the_seeder_takes_pictures_from_the_tip_folders(): void
+    {
+        $folder = database_path('seeders/data/images/figure-eight');
+        $made = [];
+        foreach (['cover.png', '1.png', '1-2.png', '2.svg', 'notes.png'] as $name) {
+            $made[] = $file = "$folder/$name";
+            if (str_ends_with($name, '.svg')) {
+                file_put_contents($file, '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>');
+            } else {
+                imagepng(imagecreatetruecolor(40, 30), $file);
+            }
+        }
+
+        try {
+            $this->seed(TechTipSeeder::class);
+        } finally {
+            array_map('unlink', $made);
+        }
+
+        $tip = TechTip::whereHas('articles', fn ($q) => $q->where('title', 'like', 'Tying in%'))->with('slides')->sole();
+        $this->assertNotNull($tip->image);
+        $this->assertSame('sequence', $tip->slides[0]->layout); // 1.png + 1-2.png
+        $this->assertCount(2, $tip->slides[0]->media);
+        $this->assertSame('picture_text', $tip->slides[1]->layout);
+        $this->assertStringEndsWith('.svg', $tip->slides[1]->media[0]['src']);
+        $this->assertCount(4, Storage::disk('local')->files('tech-tips')); // notes.png is not a slide number: ignored
+    }
+
+    public function test_the_import_command_downloads_pictures(): void
+    {
+        ob_start();
+        imagepng(imagecreatetruecolor(400, 300));
+        $png = ob_get_clean();
+        Http::fake(['93.184.215.14/*' => fn () => Http::response($png, 200)]); // a fresh body for every download
+        $file = tempnam(sys_get_temp_dir(), 'tips').'.json';
+        file_put_contents($file, json_encode([[
+            'key' => 'a', 'category' => 'ice', 'cover' => 'http://93.184.215.14/cover.png',
+            'articles' => ['en' => ['title' => 'Screws', 'short' => 'x']],
+            'slides' => [
+                ['layout' => 'picture', 'media' => ['http://93.184.215.14/1.png'], 'link' => 'a',
+                    'texts' => ['en' => ['title' => 'One', 'body' => "Text\n\n![pic](http://93.184.215.14/2.png \"left\")", 'captions' => ['First']]]],
+            ],
+        ]]));
+
+        $this->artisan('tips:import', ['file' => $file])->assertSuccessful();
+        @unlink($file);
+
+        $tip = TechTip::with('slides.texts')->sole();
+        $this->assertNotNull($tip->image);
+        $slide = $tip->slides->first();
+        $this->assertCount(1, $slide->media);
+        $this->assertSame(['First'], array_values($slide->texts->first()->captions));
+        $this->assertMatchesRegularExpression('/media:[A-Za-z0-9]{32}\.\w+ "left"/', $slide->texts->first()->body);
+        $this->assertNull($slide->link_tip_id); // a tip doesn't link to itself
+        $this->assertCount(3, Storage::disk('local')->files('tech-tips'));
+    }
+
+    public function test_svg_drawings_are_cleaned_and_served_safely(): void
+    {
+        $svg = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script>'
+            .'<rect width="10" height="10" fill="red"/><image href="http://evil.test/x.png"/></svg>';
+        Http::fake(['93.184.215.14/*' => fn () => Http::response($svg, 200, ['Content-Type' => 'image/svg+xml'])]);
+
+        $src = $this->actingAs($this->admin)->postJson('/admin/tech-tips/upload', ['url' => 'http://93.184.215.14/download/068w0000002tuNGAAY'])
+            ->assertOk()->json('src');
+        $this->assertStringEndsWith('.svg', $src);
+        $stored = Storage::disk('local')->get("tech-tips/$src");
+        $this->assertStringContainsString('<rect', $stored);
+        foreach (['onload', '<script', 'evil.test'] as $bad) {
+            $this->assertStringNotContainsString($bad, $stored);
+        }
+        $this->get("/tips/media/$src")->assertOk()
+            ->assertHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
     }
 
     public function test_admin_builds_a_slide_show(): void
